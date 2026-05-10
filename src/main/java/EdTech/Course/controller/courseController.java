@@ -5,15 +5,18 @@ import EdTech.Course.dto.ResponseMessage;
 import EdTech.Course.model.Course;
 import EdTech.Course.model.CourseMaterial;
 import EdTech.Course.service.CourseService;
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import javax.ws.rs.PathParam;
 import java.util.List;
 
 @RestController
 @RequestMapping("/courses")
 public class courseController {
+
 
     @Autowired
     private CourseService courseService;
@@ -72,9 +75,14 @@ public class courseController {
 
     @PostMapping("/course/{courseId}/register/{userId}")
     @ResponseStatus(HttpStatus.CREATED)
+    @HystrixCommand(fallbackMethod = "registerForCourseFallback")
     public ResponseMessage registerForCourse(@PathVariable Long courseId, @PathVariable Long userId){
         courseService.createEnrollmentForCourse(courseId, userId);
         return new ResponseMessage("Student Enrolled Successfully");
+    }
+
+    public ResponseMessage registerForCourseFallback(@PathVariable Long courseId, @PathVariable Long userId){
+        return new ResponseMessage("Services not available");
     }
 
 }

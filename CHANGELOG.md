@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.0.0 - 2026-05-10
+
+- Added Hystrix fallback handling for course enrollment
+- Added circuit-breaker related configuration
+- Kept the service-to-service enrollment and payment flow in place
+
 ## v3.0.0 - 2026-05-10
 
 - Added load-balanced RestTemplate configuration

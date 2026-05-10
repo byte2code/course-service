@@ -1,23 +1,23 @@
 package EdTech.Course.model;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
 import javax.persistence.*;
 import lombok.*;
 
 @Entity
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "course_material")
+@Builder
 public class CourseMaterial {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     private String type;
     private String description;
+
     @ManyToOne
     @JoinColumn(name = "course_id")
-    @JsonBackReference
     private Course course;
 }

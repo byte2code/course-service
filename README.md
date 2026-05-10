@@ -15,6 +15,7 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 - Enroll a user in a course
 - Verify users through an external user-service call before enrollment
 - Create a payment record after enrollment
+- Provide a Hystrix fallback for enrollment failures
 - Persist course, material, and enrollment data with JPA
 - Return simple success/error messages for course operations
 
@@ -32,13 +33,13 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 
 ## Enrollment Flow
 
-The v3 snapshot expands the registration flow.
+The v4 snapshot expands the registration flow and adds circuit-breaker behavior.
 
 1. The API receives a course id and user id.
 2. The service checks that the user exists through the user service.
 3. If the course exists, an `Enrollment` record is created and stored.
 4. The service sends a payment request to the payment service.
-5. The API returns a user-friendly success message.
+5. If the remote call fails, the controller returns a fallback response.
 
 ## Data Model
 
@@ -52,10 +53,11 @@ The v3 snapshot expands the registration flow.
 ## Configuration
 
 - Main application port: `8081`
-- Default datasource: `edtech_course_service`
+- Datasource: `edtech_course_service`
 - Hibernate is configured for `update` mode
 - The service uses Spring Boot 2.7.13
 - The app registers a load-balanced `RestTemplate` bean for service-to-service calls
+- Hystrix fallback support is enabled for enrollment requests
 
 ## Stack
 
@@ -65,6 +67,7 @@ The v3 snapshot expands the registration flow.
 - Spring JDBC
 - Spring Web
 - Spring Cloud LoadBalancer
+- Hystrix
 - MySQL
 - Lombok
 
