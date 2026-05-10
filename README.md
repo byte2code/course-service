@@ -4,7 +4,7 @@ Spring Boot service for managing courses in an EdTech platform. The application 
 
 ## Overview
 
-The service acts as a course catalog and enrollment backend for an EdTech system. Administrators can create and update courses, learners can view course details, and the platform can enroll users into courses after verifying they exist in the user service.
+The service acts as a course catalog and enrollment backend for an EdTech system. Administrators can create and update courses, learners can view course details, and the platform can enroll users into courses while coordinating with user and payment services.
 
 ## What it does
 
@@ -14,6 +14,7 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 - Create, update, and delete courses
 - Enroll a user in a course
 - Verify users through an external user-service call before enrollment
+- Create a payment record after enrollment
 - Persist course, material, and enrollment data with JPA
 - Return simple success/error messages for course operations
 
@@ -21,9 +22,9 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 
 - `GET /courses`
 - `GET /courses/{id}`
-- `GET /courses/name?name=...`
-- `GET /courses/courseMaterial?id=...`
-- `GET /courses/instructor?instructor=...`
+- `GET /courses/name/?name=...`
+- `GET /courses/courseMaterial/?id=...`
+- `GET /courses/instructor/?instructor=...`
 - `POST /courses`
 - `PUT /courses/{id}`
 - `DELETE /courses/{id}`
@@ -31,14 +32,13 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 
 ## Enrollment Flow
 
-The v2 snapshot adds enrollment handling inside `CourseService`.
+The v3 snapshot expands the registration flow.
 
 1. The API receives a course id and user id.
-2. The service verifies that the user exists through an external user-service endpoint.
+2. The service checks that the user exists through the user service.
 3. If the course exists, an `Enrollment` record is created and stored.
-4. The service returns a user-friendly response message.
-
-The current implementation is prepared for future payment integration as well.
+4. The service sends a payment request to the payment service.
+5. The API returns a user-friendly success message.
 
 ## Data Model
 
@@ -47,15 +47,15 @@ The current implementation is prepared for future payment integration as well.
 - `Enrollment` links users to courses
 - `CourseDto` is used for create and update requests
 - `ResponseMessage` standardizes simple API responses
-- `Payment` is included as a DTO for future payment-oriented workflows
+- `Payment` is used when forwarding enrollment charges to the payment service
 
 ## Configuration
 
 - Main application port: `8081`
-- Default datasource placeholders live in `application.yml`
+- Default datasource: `edtech_course_service`
 - Hibernate is configured for `update` mode
 - The service uses Spring Boot 2.7.13
-- MySQL is the default persistence target
+- The app registers a load-balanced `RestTemplate` bean for service-to-service calls
 
 ## Stack
 
@@ -64,12 +64,12 @@ The current implementation is prepared for future payment integration as well.
 - Spring Data JPA
 - Spring JDBC
 - Spring Web
-- Spring Boot DevTools
+- Spring Cloud LoadBalancer
 - MySQL
 - Lombok
 
 ## Notes
 
 - The repository is intended to be extended with additional enrollment and payment workflows.
-- The current service layer includes external-service calls for user validation.
+- The current service layer includes external-service calls for user validation and payment creation.
 - Generated build output is intentionally not tracked in git.

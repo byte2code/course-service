@@ -1,5 +1,11 @@
 # Changelog
 
+## v3.0.0 - 2026-05-10
+
+- Added load-balanced RestTemplate configuration
+- Added payment forwarding during enrollment
+- Switched enrollment flow to coordinated user and payment service calls
+
 ## v2.0.0 - 2026-05-10
 
 - Added course enrollment support
@@ -11,8 +17,3 @@
 
 - Initial publication of the Course service
 - Added the first full course, material, and enrollment API surface
-
-## Notes
-
-- This project is intended as a reusable EdTech backend component
-- Future releases can add enrollment workflows, validation, and richer query endpoints
