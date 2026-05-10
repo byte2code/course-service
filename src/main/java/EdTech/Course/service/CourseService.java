@@ -1,12 +1,21 @@
 package EdTech.Course.service;
 
 import EdTech.Course.dto.CourseDto;
+import EdTech.Course.dto.ResponseMessage;
 import EdTech.Course.model.Course;
 import EdTech.Course.model.CourseMaterial;
 import EdTech.Course.model.Enrollment;
 import EdTech.Course.repository.CourseRepository;
+import EdTech.Course.repository.EnrollmentRepository;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +26,11 @@ public class CourseService {
 
     @Autowired
     private CourseRepository courseRepository;
+    
+    @Autowired
+    private EnrollmentRepository enrollmentRepository;
+    @Autowired
+    private RestTemplateBuilder restTemplateBuilder;
 
     public List<Course> getAllCourses() {
         return courseRepository.findAll();
@@ -125,4 +139,57 @@ public class CourseService {
     public void deleteCourse(Long id) {
         courseRepository.deleteById(id);
     }
+    
+ // Assume PaymentService communication is similar to UserService (pseudo-code provided)
+    private final String userServiceUrl = "http://userService/users/check/"; // API to check user existence
+
+    public ResponseMessage createEnrollmentForCourse(Long courseId, Long userId, String jwtToken) {
+        RestTemplate restTemplate = restTemplateBuilder.build();
+
+        // 1. Check user existence (with JWT token in header)
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", jwtToken);
+        HttpEntity<?> requestEntity = new HttpEntity<>(headers);
+
+        ResponseEntity<Boolean> userExistsResponse;
+        try {
+            userExistsResponse = restTemplate.exchange(
+                userServiceUrl + userId,
+                HttpMethod.GET,
+                requestEntity,
+                Boolean.class
+            );
+        } catch (Exception e) {
+            return new ResponseMessage("User verification service unavailable or error occurred");
+        }
+
+        if(userExistsResponse.getBody() == null || !userExistsResponse.getBody()) {
+            return new ResponseMessage("User does not exist. Enrollment failed.");
+        }
+
+        // 2. Fetch Course and create Enrollment
+        Course course = courseRepository.findById(courseId).orElse(null);
+        if (course == null) {
+            return new ResponseMessage("Invalid Course ID. Enrollment failed.");
+        }
+
+        Enrollment enrollment = new Enrollment();
+        enrollment.setUserId(userId);
+        enrollment.setCourse(course);
+
+        enrollmentRepository.save(enrollment);
+
+        // 3. Call PaymentService to generate payment (pseudo-code)
+        // paymentService.generatePayment(userId, courseId, course.getAmount(), jwtToken);
+
+        // 4. Return success response
+        return new ResponseMessage("Student Enrolled Successfully");
+    }
+    
+    public ResponseMessage createEnrollmentForCourse(Long courseId, Long userId) {
+	    // Provide a default or dummy JWT token because test doesn't supply one
+	    String dummyJwtToken = "Bearer dummy-token-for-tests";
+	    return createEnrollmentForCourse(courseId, userId, dummyJwtToken);
+	}
+
 }

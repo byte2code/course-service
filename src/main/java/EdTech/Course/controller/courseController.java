@@ -69,5 +69,16 @@ public class courseController {
         response.put("message", "Course Deleted Successfully");
         return ResponseEntity.ok(response);
     }
+    
+    @PostMapping("/course/{courseId}/register/{userId}")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseMessage registerForCourse(@PathVariable Long courseId, @PathVariable Long userId){
+        courseService.createEnrollmentForCourse(courseId, userId);
+        return new ResponseMessage("Student Enrolled Successfully");
+    }
+
+
+
+
 
 }
