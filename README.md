@@ -13,8 +13,8 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 - Inspect course materials for a course
 - Create, update, and delete courses
 - Enroll a user in a course
-- Verify users through an external user-service call before enrollment
-- Create a payment record after enrollment
+- Verify users through a user-service Feign client before enrollment
+- Create a payment record through a payment-service Feign client after enrollment
 - Provide a Hystrix fallback for enrollment failures
 - Persist course, material, and enrollment data with JPA
 - Return simple success/error messages for course operations
@@ -33,13 +33,19 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 
 ## Enrollment Flow
 
-The v4 snapshot expands the registration flow and adds circuit-breaker behavior.
+The v5 snapshot moves the service-to-service communication into Feign clients.
 
 1. The API receives a course id and user id.
-2. The service checks that the user exists through the user service.
+2. The service calls the user-service client to verify the user exists.
 3. If the course exists, an `Enrollment` record is created and stored.
-4. The service sends a payment request to the payment service.
+4. The service calls the payment-service client to create a payment record.
 5. If the remote call fails, the controller returns a fallback response.
+
+## Integration Points
+
+- `user-service` via `EdTech.Course.feign.UserService`
+- `payment-service` via `EdTech.Course.feign.PaymentService`
+- `RestTemplate` bean remains available for compatibility with the existing configuration
 
 ## Data Model
 
@@ -67,6 +73,7 @@ The v4 snapshot expands the registration flow and adds circuit-breaker behavior.
 - Spring JDBC
 - Spring Web
 - Spring Cloud LoadBalancer
+- Spring Cloud OpenFeign
 - Hystrix
 - MySQL
 - Lombok
@@ -74,5 +81,5 @@ The v4 snapshot expands the registration flow and adds circuit-breaker behavior.
 ## Notes
 
 - The repository is intended to be extended with additional enrollment and payment workflows.
-- The current service layer includes external-service calls for user validation and payment creation.
+- The current service layer includes Feign-based user and payment integration.
 - Generated build output is intentionally not tracked in git.

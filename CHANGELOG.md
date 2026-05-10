@@ -1,5 +1,11 @@
 # Changelog
 
+## v5.0.0 - 2026-05-10
+
+- Added Feign clients for user and payment services
+- Moved enrollment coordination to Feign-based service calls
+- Kept the Hystrix-backed fallback path in place
+
 ## v4.0.0 - 2026-05-10
 
 - Added Hystrix fallback handling for course enrollment
