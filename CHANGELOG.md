@@ -1,5 +1,11 @@
 # Changelog
 
+## v6.0.0 - 2026-06-03
+
+- Added an explicit enrollment lifecycle with `INITIATED`, `USER_VERIFIED`, `PAYMENT_PENDING`, `ENROLLED`, and `FAILED`
+- Persisted enrollment state changes step-by-step so payment and user-verification failures remain visible in the database
+- Updated the README with the new enrollment state machine and flow diagram
+
 ## v5.0.0 - 2026-05-10
 
 - Added Feign clients for user and payment services

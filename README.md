@@ -12,7 +12,7 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 - Retrieve courses by id, name, or instructor
 - Inspect course materials for a course
 - Create, update, and delete courses
-- Enroll a user in a course
+- Enroll a user in a course with a persisted lifecycle state machine
 - Verify users through a user-service Feign client before enrollment
 - Create a payment record through a payment-service Feign client after enrollment
 - Provide a Hystrix fallback for enrollment failures
@@ -33,13 +33,26 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 
 ## Enrollment Flow
 
-The v5 snapshot moves the service-to-service communication into Feign clients.
+The v6 snapshot keeps the Feign-based integration but adds explicit enrollment states so the workflow is easier to trace and reason about.
 
 1. The API receives a course id and user id.
-2. The service calls the user-service client to verify the user exists.
-3. If the course exists, an `Enrollment` record is created and stored.
-4. The service calls the payment-service client to create a payment record.
-5. If the remote call fails, the controller returns a fallback response.
+2. The service creates an `Enrollment` record in `INITIATED` state.
+3. The service calls the user-service client to verify the user exists and advances the record to `USER_VERIFIED`.
+4. The enrollment moves to `PAYMENT_PENDING` before the payment-service call.
+5. If payment succeeds, the record is updated to `ENROLLED`.
+6. If user verification or payment fails, the record is persisted as `FAILED` before the exception bubbles up to the Hystrix fallback.
+
+### State Machine
+
+```mermaid
+flowchart LR
+    Initiated[INITIATED] --> Verified[USER_VERIFIED]
+    Verified --> Pending[PAYMENT_PENDING]
+    Pending --> Enrolled[ENROLLED]
+    Initiated --> Failed[FAILED]
+    Verified --> Failed
+    Pending --> Failed
+```
 
 ## Integration Points
 
@@ -52,6 +65,7 @@ The v5 snapshot moves the service-to-service communication into Feign clients.
 - `Course` represents the core catalog item
 - `CourseMaterial` stores content tied to a course
 - `Enrollment` links users to courses
+- `EnrollmentStatus` stores lifecycle states for the enrollment workflow
 - `CourseDto` is used for create and update requests
 - `ResponseMessage` standardizes simple API responses
 - `Payment` is used when forwarding enrollment charges to the payment service
@@ -63,6 +77,7 @@ The v5 snapshot moves the service-to-service communication into Feign clients.
 - Hibernate is configured for `update` mode
 - The service uses Spring Boot 2.7.13
 - The app registers a load-balanced `RestTemplate` bean for service-to-service calls
+- Enrollment records are persisted at each lifecycle stage so failures remain traceable
 - Hystrix fallback support is enabled for enrollment requests
 
 ## Stack

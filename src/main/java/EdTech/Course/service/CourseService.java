@@ -2,11 +2,13 @@ package EdTech.Course.service;
 
 import EdTech.Course.dto.CourseDto;
 import EdTech.Course.dto.Payment;
+import EdTech.Course.dto.ResponseMessage;
 import EdTech.Course.feign.PaymentService;
 import EdTech.Course.feign.UserService;
 import EdTech.Course.model.Course;
 import EdTech.Course.model.CourseMaterial;
 import EdTech.Course.model.Enrollment;
+import EdTech.Course.model.EnrollmentStatus;
 import EdTech.Course.repository.CourseRepository;
 import EdTech.Course.repository.EnrollmentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -96,23 +98,59 @@ public class CourseService {
         return courseRepository.findById(id).orElseThrow().getCourseMaterial();
     }
 
-    public void createEnrollmentForCourse(Long courseId, Long userId) {
+    public ResponseMessage createEnrollmentForCourse(Long courseId, Long userId) {
+        Course course = courseRepository.findById(courseId).orElseThrow();
+        Enrollment enrollment = persistEnrollment(course, userId, EnrollmentStatus.INITIATED,
+                "Enrollment initiated");
 
-        // call to user to find user is available
-        String token = "Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJuIiwiaWF0IjoxNjkyNjMyNzA5LCJleHAiOjE2OTI3MTkxMDl9.6rEgbP35a-2nvXPtPDfw9mg6qLMt43DE1ElqXZcOZJ0wdtRenPEXCxYWBjwGNkG8o-B3ZxUDb431-EU0DuMqzw";
-        Object object = userService.getUserById(token, userId);
-        if(object == null) throw new RuntimeException("User not found");
+        try {
+            // call to user to find user is available
+            String token = "Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJuIiwiaWF0IjoxNjkyNjMyNzA5LCJleHAiOjE2OTI3MTkxMDl9.6rEgbP35a-2nvXPtPDfw9mg6qLMt43DE1ElqXZcOZJ0wdtRenPEXCxYWBjwGNkG8o-B3ZxUDb431-EU0DuMqzw";
+            Object object = userService.getUserById(token, userId);
+            if (object == null) {
+                markEnrollmentFailed(enrollment, "User not found");
+                throw new RuntimeException("User not found");
+            }
 
+            markEnrollment(enrollment, EnrollmentStatus.USER_VERIFIED, "User verified through user-service");
+            markEnrollment(enrollment, EnrollmentStatus.PAYMENT_PENDING, "Payment request is being created");
+
+            // creating payment
+            Payment payment = new Payment();
+            payment.setCourseId(courseId);
+            payment.setUserId(userId);
+            payment.setAmount(course.getAmount());
+            paymentService.createPayment(payment);
+
+            markEnrollment(enrollment, EnrollmentStatus.ENROLLED, "Student enrolled successfully");
+            return new ResponseMessage("Student Enrolled Successfully");
+        } catch (RuntimeException ex) {
+            if (enrollment.getStatus() != EnrollmentStatus.FAILED) {
+                markEnrollmentFailed(enrollment, ex.getMessage());
+            }
+            throw ex;
+        } catch (Exception ex) {
+            markEnrollmentFailed(enrollment, "Enrollment failed unexpectedly");
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private Enrollment persistEnrollment(Course course, Long userId, EnrollmentStatus status, String statusMessage) {
         Enrollment enrollment = new Enrollment();
         enrollment.setUserId(userId);
-        enrollment.setCourse(courseRepository.findById(courseId).orElseThrow());
-        enrollmentRepository.save(enrollment);
+        enrollment.setCourse(course);
+        enrollment.setStatus(status);
+        enrollment.setStatusMessage(statusMessage);
+        return enrollmentRepository.save(enrollment);
+    }
 
-        // creating payment
-        Payment payment = new Payment();
-        payment.setCourseId(courseId);
-        payment.setUserId(userId);
-        payment.setAmount(enrollment.getCourse().getAmount());
-        paymentService.createPayment(payment);
+    private Enrollment markEnrollment(Enrollment enrollment, EnrollmentStatus status, String statusMessage) {
+        enrollment.setStatus(status);
+        enrollment.setStatusMessage(statusMessage);
+        return enrollmentRepository.save(enrollment);
+    }
+
+    private Enrollment markEnrollmentFailed(Enrollment enrollment, String statusMessage) {
+        return markEnrollment(enrollment, EnrollmentStatus.FAILED, statusMessage);
     }
 }

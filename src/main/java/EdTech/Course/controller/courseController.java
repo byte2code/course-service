@@ -77,8 +77,7 @@ public class courseController {
     @ResponseStatus(HttpStatus.CREATED)
     @HystrixCommand(fallbackMethod = "registerForCourseFallback")
     public ResponseMessage registerForCourse(@PathVariable Long courseId, @PathVariable Long userId){
-        courseService.createEnrollmentForCourse(courseId, userId);
-        return new ResponseMessage("Student Enrolled Successfully");
+        return courseService.createEnrollmentForCourse(courseId, userId);
     }
 
     public ResponseMessage registerForCourseFallback(@PathVariable Long courseId, @PathVariable Long userId){
