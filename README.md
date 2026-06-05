@@ -13,6 +13,7 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 - Inspect course materials for a course
 - Create, update, and delete courses
 - Enroll a user in a course with a persisted lifecycle state machine
+- Make enrollment idempotent so duplicate requests reuse the existing enrollment
 - Verify users through a user-service Feign client before enrollment
 - Create a payment record through a payment-service Feign client after enrollment
 - Provide a Hystrix fallback for enrollment failures
@@ -33,14 +34,16 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 
 ## Enrollment Flow
 
-The v6 snapshot keeps the Feign-based integration but adds explicit enrollment states so the workflow is easier to trace and reason about.
+The v7 snapshot keeps the Feign-based integration but adds explicit enrollment states and idempotent duplicate handling so the workflow is easier to trace and reason about.
 
 1. The API receives a course id and user id.
-2. The service creates an `Enrollment` record in `INITIATED` state.
-3. The service calls the user-service client to verify the user exists and advances the record to `USER_VERIFIED`.
-4. The enrollment moves to `PAYMENT_PENDING` before the payment-service call.
-5. If payment succeeds, the record is updated to `ENROLLED`.
-6. If user verification or payment fails, the record is persisted as `FAILED` before the exception bubbles up to the Hystrix fallback.
+2. The service first checks whether an enrollment already exists for the same user and course.
+3. If a record already exists, the service returns the existing enrollment state and does not create a second payment or enrollment row.
+4. If no record exists, the service creates an `Enrollment` record in `INITIATED` state.
+5. The service calls the user-service client to verify the user exists and advances the record to `USER_VERIFIED`.
+6. The enrollment moves to `PAYMENT_PENDING` before the payment-service call.
+7. If payment succeeds, the record is updated to `ENROLLED`.
+8. If user verification or payment fails, the record is persisted as `FAILED` before the exception bubbles up to the Hystrix fallback.
 
 ### State Machine
 
@@ -52,6 +55,8 @@ flowchart LR
     Initiated --> Failed[FAILED]
     Verified --> Failed
     Pending --> Failed
+    Enrolled --> Enrolled
+    Failed --> Failed
 ```
 
 ## Integration Points
@@ -66,6 +71,7 @@ flowchart LR
 - `CourseMaterial` stores content tied to a course
 - `Enrollment` links users to courses
 - `EnrollmentStatus` stores lifecycle states for the enrollment workflow
+- `userId + course_id` is treated as the idempotency key for enrollment requests
 - `CourseDto` is used for create and update requests
 - `ResponseMessage` standardizes simple API responses
 - `Payment` is used when forwarding enrollment charges to the payment service
@@ -77,6 +83,7 @@ flowchart LR
 - Hibernate is configured for `update` mode
 - The service uses Spring Boot 2.7.13
 - The app registers a load-balanced `RestTemplate` bean for service-to-service calls
+- Enrollment requests are idempotent for the same user and course
 - Enrollment records are persisted at each lifecycle stage so failures remain traceable
 - Hystrix fallback support is enabled for enrollment requests
 

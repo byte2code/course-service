@@ -24,6 +24,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -64,6 +65,7 @@ class CourseServiceTest {
 
         List<EnrollmentStatus> states = new ArrayList<>();
         when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
+        when(enrollmentRepository.findByUserIdAndCourseId(2L, 1L)).thenReturn(Optional.empty());
         when(userService.getUserById(anyString(), eq(2L))).thenReturn(new Object());
         when(enrollmentRepository.save(any(Enrollment.class))).thenAnswer(invocation -> {
             Enrollment enrollment = invocation.getArgument(0);
@@ -94,6 +96,7 @@ class CourseServiceTest {
 
         List<EnrollmentStatus> states = new ArrayList<>();
         when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
+        when(enrollmentRepository.findByUserIdAndCourseId(2L, 1L)).thenReturn(Optional.empty());
         when(userService.getUserById(anyString(), eq(2L))).thenReturn(new Object());
         when(enrollmentRepository.save(any(Enrollment.class))).thenAnswer(invocation -> {
             Enrollment enrollment = invocation.getArgument(0);
@@ -126,6 +129,7 @@ class CourseServiceTest {
 
         List<EnrollmentStatus> states = new ArrayList<>();
         when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
+        when(enrollmentRepository.findByUserIdAndCourseId(2L, 1L)).thenReturn(Optional.empty());
         when(userService.getUserById(anyString(), eq(2L))).thenReturn(null);
         when(enrollmentRepository.save(any(Enrollment.class))).thenAnswer(invocation -> {
             Enrollment enrollment = invocation.getArgument(0);
@@ -145,5 +149,29 @@ class CourseServiceTest {
                 EnrollmentStatus.FAILED
         ), states);
         verify(paymentService, never()).createPayment(any(Payment.class));
+    }
+
+    @Test
+    void createEnrollmentForCourseReturnsExistingEnrollmentWithoutDuplicatePayment() {
+        Course course = new Course();
+        course.setId(1L);
+        course.setAmount(2500L);
+
+        Enrollment existingEnrollment = new Enrollment();
+        existingEnrollment.setId(10L);
+        existingEnrollment.setUserId(2L);
+        existingEnrollment.setCourse(course);
+        existingEnrollment.setStatus(EnrollmentStatus.ENROLLED);
+        existingEnrollment.setStatusMessage("Student enrolled successfully");
+
+        when(enrollmentRepository.findByUserIdAndCourseId(2L, 1L)).thenReturn(Optional.of(existingEnrollment));
+
+        ResponseMessage response = courseService.createEnrollmentForCourse(1L, 2L);
+
+        assertEquals("Student already enrolled", response.getMessage());
+        verify(courseRepository, never()).findById(anyLong());
+        verify(userService, never()).getUserById(anyString(), anyLong());
+        verify(paymentService, never()).createPayment(any(Payment.class));
+        verify(enrollmentRepository, never()).save(any(Enrollment.class));
     }
 }

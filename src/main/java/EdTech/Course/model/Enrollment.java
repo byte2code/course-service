@@ -12,7 +12,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "enrollment")
+@Table(name = "enrollment", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "course_id"}))
 public class Enrollment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -11,6 +11,7 @@ import EdTech.Course.model.Enrollment;
 import EdTech.Course.model.EnrollmentStatus;
 import EdTech.Course.repository.CourseRepository;
 import EdTech.Course.repository.EnrollmentRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -99,6 +100,21 @@ public class CourseService {
     }
 
     public ResponseMessage createEnrollmentForCourse(Long courseId, Long userId) {
+        try {
+            return createEnrollmentInternal(courseId, userId);
+        } catch (DataIntegrityViolationException ex) {
+            Enrollment existingEnrollment = enrollmentRepository.findByUserIdAndCourseId(userId, courseId)
+                    .orElseThrow(() -> ex);
+            return buildDuplicateResponse(existingEnrollment);
+        }
+    }
+
+    private ResponseMessage createEnrollmentInternal(Long courseId, Long userId) {
+        Enrollment existingEnrollment = enrollmentRepository.findByUserIdAndCourseId(userId, courseId).orElse(null);
+        if (existingEnrollment != null) {
+            return buildDuplicateResponse(existingEnrollment);
+        }
+
         Course course = courseRepository.findById(courseId).orElseThrow();
         Enrollment enrollment = persistEnrollment(course, userId, EnrollmentStatus.INITIATED,
                 "Enrollment initiated");
@@ -133,6 +149,16 @@ public class CourseService {
             markEnrollmentFailed(enrollment, "Enrollment failed unexpectedly");
             throw new RuntimeException(ex);
         }
+    }
+
+    private ResponseMessage buildDuplicateResponse(Enrollment enrollment) {
+        if (enrollment.getStatus() == EnrollmentStatus.ENROLLED) {
+            return new ResponseMessage("Student already enrolled");
+        }
+        if (enrollment.getStatus() == EnrollmentStatus.FAILED) {
+            return new ResponseMessage("Enrollment already failed");
+        }
+        return new ResponseMessage("Enrollment already in progress");
     }
 
     private Enrollment persistEnrollment(Course course, Long userId, EnrollmentStatus status, String statusMessage) {

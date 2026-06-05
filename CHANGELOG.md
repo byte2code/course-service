@@ -1,5 +1,12 @@
 # Changelog
 
+## v7.0.0 - 2026-06-05
+
+- Added idempotent enrollment handling for repeated user/course registration requests
+- Reused the existing enrollment record instead of creating duplicate enrollments or duplicate payment calls
+- Added a unique constraint on the enrollment user/course pair
+- Updated the README to explain the idempotent enrollment path
+
 ## v6.0.0 - 2026-06-03
 
 - Added an explicit enrollment lifecycle with `INITIATED`, `USER_VERIFIED`, `PAYMENT_PENDING`, `ENROLLED`, and `FAILED`
