@@ -35,7 +35,7 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 
 ## Enrollment Flow
 
-The v8 snapshot keeps the Feign-based integration but adds explicit enrollment states, idempotent duplicate handling, and broker-side lifecycle events so the workflow is easier to trace and reason about.
+The v9 snapshot keeps the Feign-based integration but adds explicit enrollment states, idempotent duplicate handling, broker-side lifecycle events, and Spring-backed integration tests so the workflow is easier to trace and reason about.
 
 1. The API receives a course id and user id.
 2. The service first checks whether an enrollment already exists for the same user and course.
@@ -84,12 +84,32 @@ sequenceDiagram
     participant RabbitMQ
 
     Client->>CourseAPI: POST /courses/course/{courseId}/register/{userId}
-    CourseAPI->>RabbitMQ: Enrollment initiated event
-    CourseAPI->>UserSvc: Verify user
-    CourseAPI->>RabbitMQ: User verified event
-    CourseAPI->>RabbitMQ: Payment requested event
-    CourseAPI->>PaySvc: Create payment
-    CourseAPI->>RabbitMQ: Enrollment confirmed event
+    CourseAPI->>CourseAPI: Check enrollment idempotency key
+
+    alt Existing enrollment found
+        CourseAPI->>RabbitMQ: Publish duplicate-request notification
+        CourseAPI-->>Client: Return existing state message
+    else New enrollment
+        CourseAPI->>RabbitMQ: Publish enrollment initiated
+        CourseAPI->>UserSvc: Verify user
+
+        alt User not found
+            CourseAPI->>RabbitMQ: Publish failed + notification events
+            CourseAPI-->>Client: Return failure response
+        else User verified
+            CourseAPI->>RabbitMQ: Publish user verified
+            CourseAPI->>RabbitMQ: Publish payment requested
+            CourseAPI->>PaySvc: Create payment
+
+            alt Payment succeeds
+                CourseAPI->>RabbitMQ: Publish enrollment confirmed
+                CourseAPI-->>Client: Return success response
+            else Payment fails
+                CourseAPI->>RabbitMQ: Publish failed + notification events
+                CourseAPI-->>Client: Return failure response
+            end
+        end
+    end
 ```
 
 ### Messaging Details
@@ -97,6 +117,7 @@ sequenceDiagram
 - Exchange: `course.lifecycle.exchange`
 - Routing keys: `course.enrollment.*`, `course.payment.*`, `course.notification.*`
 - Payloads are serialized as JSON so future consumers can bind without changing the service contract
+- Event payloads include the enrollment id, course id, user id, correlation key, lifecycle status, message, and timestamp
 - Messaging is best-effort and does not block the enrollment workflow if the broker is unavailable
 
 ## Integration Points
@@ -143,6 +164,15 @@ sequenceDiagram
 - RabbitMQ
 - MySQL
 - Lombok
+
+## Test Coverage
+
+- Unit tests cover the enrollment state machine, duplicate handling, and broker payload publishing.
+- Spring-based integration-style tests cover HTTP routing and service wiring with mocked collaborators.
+
+## Metadata Tags
+
+`java`, `spring-boot`, `spring-cloud`, `microservices`, `event-driven-architecture`, `rabbitmq`, `idempotency`, `hystrix`, `feign`, `jpa`, `mysql`, `rest-api`, `integration-tests`
 
 ## Notes
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## v9.0.0 - 2026-06-07
+
+- Added Spring-based integration-style tests for the controller and service layers
+- Expanded the README with a clearer enrollment sequence flow, failure branches, and messaging details
+- Added metadata tags to improve discoverability for backend and recruiter searches
+- Removed the stray `HELP.md` file from the repository root
+
 ## v8.0.0 - 2026-06-07
 
 - Added RabbitMQ-backed event publishing for enrollment, payment, and notification workflows
