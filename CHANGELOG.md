@@ -1,5 +1,12 @@
 # Changelog
 
+## v8.0.0 - 2026-06-07
+
+- Added RabbitMQ-backed event publishing for enrollment, payment, and notification workflows
+- Emitted lifecycle events for enrollment initiated, user verified, payment requested, confirmed, failed, and duplicate-request paths
+- Kept the synchronous enrollment contract unchanged while making downstream integrations easier to add
+- Updated the README with the event flow, messaging details, and broker configuration notes
+
 ## v7.0.0 - 2026-06-05
 
 - Added idempotent enrollment handling for repeated user/course registration requests

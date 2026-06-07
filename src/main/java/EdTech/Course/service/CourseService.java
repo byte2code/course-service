@@ -3,6 +3,7 @@ package EdTech.Course.service;
 import EdTech.Course.dto.CourseDto;
 import EdTech.Course.dto.Payment;
 import EdTech.Course.dto.ResponseMessage;
+import EdTech.Course.event.CourseEventType;
 import EdTech.Course.feign.PaymentService;
 import EdTech.Course.feign.UserService;
 import EdTech.Course.model.Course;
@@ -11,8 +12,8 @@ import EdTech.Course.model.Enrollment;
 import EdTech.Course.model.EnrollmentStatus;
 import EdTech.Course.repository.CourseRepository;
 import EdTech.Course.repository.EnrollmentRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -36,6 +37,9 @@ public class CourseService {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private CourseEventPublisher courseEventPublisher;
 
     public List<Course> getAllCourses() {
         return courseRepository.findAll();
@@ -105,6 +109,12 @@ public class CourseService {
         } catch (DataIntegrityViolationException ex) {
             Enrollment existingEnrollment = enrollmentRepository.findByUserIdAndCourseId(userId, courseId)
                     .orElseThrow(() -> ex);
+            courseEventPublisher.publishNotificationEvent(
+                    existingEnrollment,
+                    existingEnrollment.getCourse(),
+                    CourseEventType.DUPLICATE_REQUEST,
+                    "Duplicate enrollment request ignored"
+            );
             return buildDuplicateResponse(existingEnrollment);
         }
     }
@@ -112,12 +122,24 @@ public class CourseService {
     private ResponseMessage createEnrollmentInternal(Long courseId, Long userId) {
         Enrollment existingEnrollment = enrollmentRepository.findByUserIdAndCourseId(userId, courseId).orElse(null);
         if (existingEnrollment != null) {
+            courseEventPublisher.publishNotificationEvent(
+                    existingEnrollment,
+                    existingEnrollment.getCourse(),
+                    CourseEventType.DUPLICATE_REQUEST,
+                    "Duplicate enrollment request ignored"
+            );
             return buildDuplicateResponse(existingEnrollment);
         }
 
         Course course = courseRepository.findById(courseId).orElseThrow();
         Enrollment enrollment = persistEnrollment(course, userId, EnrollmentStatus.INITIATED,
                 "Enrollment initiated");
+        courseEventPublisher.publishEnrollmentEvent(
+                enrollment,
+                course,
+                CourseEventType.INITIATED,
+                "Enrollment initiated"
+        );
 
         try {
             // call to user to find user is available
@@ -129,24 +151,67 @@ public class CourseService {
             }
 
             markEnrollment(enrollment, EnrollmentStatus.USER_VERIFIED, "User verified through user-service");
+            courseEventPublisher.publishEnrollmentEvent(
+                    enrollment,
+                    course,
+                    CourseEventType.USER_VERIFIED,
+                    "User verified through user-service"
+            );
             markEnrollment(enrollment, EnrollmentStatus.PAYMENT_PENDING, "Payment request is being created");
-
             // creating payment
             Payment payment = new Payment();
             payment.setCourseId(courseId);
             payment.setUserId(userId);
             payment.setAmount(course.getAmount());
+            courseEventPublisher.publishPaymentEvent(
+                    enrollment,
+                    course,
+                    payment,
+                    CourseEventType.REQUESTED,
+                    "Payment request created for enrollment"
+            );
+
             paymentService.createPayment(payment);
 
             markEnrollment(enrollment, EnrollmentStatus.ENROLLED, "Student enrolled successfully");
+            courseEventPublisher.publishEnrollmentEvent(
+                    enrollment,
+                    course,
+                    CourseEventType.CONFIRMED,
+                    "Student enrolled successfully"
+            );
             return new ResponseMessage("Student Enrolled Successfully");
         } catch (RuntimeException ex) {
             if (enrollment.getStatus() != EnrollmentStatus.FAILED) {
                 markEnrollmentFailed(enrollment, ex.getMessage());
             }
+            courseEventPublisher.publishEnrollmentEvent(
+                    enrollment,
+                    course,
+                    CourseEventType.FAILED,
+                    ex.getMessage()
+            );
+            courseEventPublisher.publishNotificationEvent(
+                    enrollment,
+                    course,
+                    CourseEventType.FAILED,
+                    ex.getMessage()
+            );
             throw ex;
         } catch (Exception ex) {
             markEnrollmentFailed(enrollment, "Enrollment failed unexpectedly");
+            courseEventPublisher.publishEnrollmentEvent(
+                    enrollment,
+                    course,
+                    CourseEventType.FAILED,
+                    "Enrollment failed unexpectedly"
+            );
+            courseEventPublisher.publishNotificationEvent(
+                    enrollment,
+                    course,
+                    CourseEventType.FAILED,
+                    "Enrollment failed unexpectedly"
+            );
             throw new RuntimeException(ex);
         }
     }

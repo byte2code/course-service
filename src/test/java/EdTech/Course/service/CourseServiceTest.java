@@ -2,6 +2,7 @@ package EdTech.Course.service;
 
 import EdTech.Course.dto.Payment;
 import EdTech.Course.dto.ResponseMessage;
+import EdTech.Course.event.CourseEventType;
 import EdTech.Course.feign.PaymentService;
 import EdTech.Course.feign.UserService;
 import EdTech.Course.model.Course;
@@ -49,6 +50,9 @@ class CourseServiceTest {
     @Mock
     private UserService userService;
 
+    @Mock
+    private CourseEventPublisher courseEventPublisher;
+
     @InjectMocks
     private CourseService courseService;
 
@@ -86,6 +90,10 @@ class CourseServiceTest {
                 EnrollmentStatus.ENROLLED
         ), states);
         verify(paymentService).createPayment(any(Payment.class));
+        verify(courseEventPublisher).publishEnrollmentEvent(any(Enrollment.class), eq(course), eq(CourseEventType.INITIATED), eq("Enrollment initiated"));
+        verify(courseEventPublisher).publishEnrollmentEvent(any(Enrollment.class), eq(course), eq(CourseEventType.USER_VERIFIED), eq("User verified through user-service"));
+        verify(courseEventPublisher).publishPaymentEvent(any(Enrollment.class), eq(course), any(Payment.class), eq(CourseEventType.REQUESTED), eq("Payment request created for enrollment"));
+        verify(courseEventPublisher).publishEnrollmentEvent(any(Enrollment.class), eq(course), eq(CourseEventType.CONFIRMED), eq("Student enrolled successfully"));
     }
 
     @Test
@@ -119,6 +127,11 @@ class CourseServiceTest {
                 EnrollmentStatus.FAILED
         ), states);
         verify(paymentService).createPayment(any(Payment.class));
+        verify(courseEventPublisher).publishEnrollmentEvent(any(Enrollment.class), eq(course), eq(CourseEventType.INITIATED), eq("Enrollment initiated"));
+        verify(courseEventPublisher).publishEnrollmentEvent(any(Enrollment.class), eq(course), eq(CourseEventType.USER_VERIFIED), eq("User verified through user-service"));
+        verify(courseEventPublisher).publishPaymentEvent(any(Enrollment.class), eq(course), any(Payment.class), eq(CourseEventType.REQUESTED), eq("Payment request created for enrollment"));
+        verify(courseEventPublisher).publishEnrollmentEvent(any(Enrollment.class), eq(course), eq(CourseEventType.FAILED), anyString());
+        verify(courseEventPublisher).publishNotificationEvent(any(Enrollment.class), eq(course), eq(CourseEventType.FAILED), anyString());
     }
 
     @Test
@@ -149,6 +162,9 @@ class CourseServiceTest {
                 EnrollmentStatus.FAILED
         ), states);
         verify(paymentService, never()).createPayment(any(Payment.class));
+        verify(courseEventPublisher).publishEnrollmentEvent(any(Enrollment.class), eq(course), eq(CourseEventType.INITIATED), eq("Enrollment initiated"));
+        verify(courseEventPublisher).publishEnrollmentEvent(any(Enrollment.class), eq(course), eq(CourseEventType.FAILED), anyString());
+        verify(courseEventPublisher).publishNotificationEvent(any(Enrollment.class), eq(course), eq(CourseEventType.FAILED), anyString());
     }
 
     @Test
@@ -173,5 +189,6 @@ class CourseServiceTest {
         verify(userService, never()).getUserById(anyString(), anyLong());
         verify(paymentService, never()).createPayment(any(Payment.class));
         verify(enrollmentRepository, never()).save(any(Enrollment.class));
+        verify(courseEventPublisher).publishNotificationEvent(any(Enrollment.class), eq(course), eq(CourseEventType.DUPLICATE_REQUEST), eq("Duplicate enrollment request ignored"));
     }
 }

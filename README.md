@@ -16,6 +16,7 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 - Make enrollment idempotent so duplicate requests reuse the existing enrollment
 - Verify users through a user-service Feign client before enrollment
 - Create a payment record through a payment-service Feign client after enrollment
+- Publish enrollment, payment, and notification events for downstream workflows
 - Provide a Hystrix fallback for enrollment failures
 - Persist course, material, and enrollment data with JPA
 - Return simple success/error messages for course operations
@@ -34,7 +35,7 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 
 ## Enrollment Flow
 
-The v7 snapshot keeps the Feign-based integration but adds explicit enrollment states and idempotent duplicate handling so the workflow is easier to trace and reason about.
+The v8 snapshot keeps the Feign-based integration but adds explicit enrollment states, idempotent duplicate handling, and broker-side lifecycle events so the workflow is easier to trace and reason about.
 
 1. The API receives a course id and user id.
 2. The service first checks whether an enrollment already exists for the same user and course.
@@ -59,10 +60,50 @@ flowchart LR
     Failed --> Failed
 ```
 
+## Event Publishing
+
+The v8 snapshot adds RabbitMQ-backed event publishing without changing the synchronous enrollment contract. The service now emits JSON messages for lifecycle transitions, payment requests, and duplicate-request notifications.
+
+### Event Types
+
+- `ENROLLMENT_INITIATED`
+- `USER_VERIFIED`
+- `PAYMENT_REQUESTED`
+- `CONFIRMED`
+- `FAILED`
+- `DUPLICATE_REQUEST`
+
+### Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant CourseAPI as Course Service
+    participant UserSvc as user-service
+    participant PaySvc as payment-service
+    participant RabbitMQ
+
+    Client->>CourseAPI: POST /courses/course/{courseId}/register/{userId}
+    CourseAPI->>RabbitMQ: Enrollment initiated event
+    CourseAPI->>UserSvc: Verify user
+    CourseAPI->>RabbitMQ: User verified event
+    CourseAPI->>RabbitMQ: Payment requested event
+    CourseAPI->>PaySvc: Create payment
+    CourseAPI->>RabbitMQ: Enrollment confirmed event
+```
+
+### Messaging Details
+
+- Exchange: `course.lifecycle.exchange`
+- Routing keys: `course.enrollment.*`, `course.payment.*`, `course.notification.*`
+- Payloads are serialized as JSON so future consumers can bind without changing the service contract
+- Messaging is best-effort and does not block the enrollment workflow if the broker is unavailable
+
 ## Integration Points
 
 - `user-service` via `EdTech.Course.feign.UserService`
 - `payment-service` via `EdTech.Course.feign.PaymentService`
+- RabbitMQ via `EdTech.Course.service.CourseEventPublisher`
 - `RestTemplate` bean remains available for compatibility with the existing configuration
 
 ## Data Model
@@ -75,6 +116,7 @@ flowchart LR
 - `CourseDto` is used for create and update requests
 - `ResponseMessage` standardizes simple API responses
 - `Payment` is used when forwarding enrollment charges to the payment service
+- `CourseEvent` packages broker-ready lifecycle metadata for downstream consumers
 
 ## Configuration
 
@@ -86,6 +128,7 @@ flowchart LR
 - Enrollment requests are idempotent for the same user and course
 - Enrollment records are persisted at each lifecycle stage so failures remain traceable
 - Hystrix fallback support is enabled for enrollment requests
+- RabbitMQ host configuration is provided for local event publishing
 
 ## Stack
 
@@ -97,6 +140,7 @@ flowchart LR
 - Spring Cloud LoadBalancer
 - Spring Cloud OpenFeign
 - Hystrix
+- RabbitMQ
 - MySQL
 - Lombok
 
