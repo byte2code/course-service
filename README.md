@@ -17,7 +17,7 @@ The service acts as a course catalog and enrollment backend for an EdTech system
 - Verify users through a user-service Feign client before enrollment
 - Create a payment record through a payment-service Feign client after enrollment
 - Publish enrollment, payment, and notification events for downstream workflows
-- Provide a Hystrix fallback for enrollment failures
+- Provide a Resilience4j fallback for enrollment failures
 - Persist course, material, and enrollment data with JPA
 - Return simple success/error messages for course operations
 
@@ -44,7 +44,7 @@ The v9 snapshot keeps the Feign-based integration but adds explicit enrollment s
 5. The service calls the user-service client to verify the user exists and advances the record to `USER_VERIFIED`.
 6. The enrollment moves to `PAYMENT_PENDING` before the payment-service call.
 7. If payment succeeds, the record is updated to `ENROLLED`.
-8. If user verification or payment fails, the record is persisted as `FAILED` before the exception bubbles up to the Hystrix fallback.
+8. If user verification or payment fails, the record is persisted as `FAILED` before the exception bubbles up to the Resilience4j fallback.
 
 ### State Machine
 
@@ -148,7 +148,7 @@ sequenceDiagram
 - The app registers a load-balanced `RestTemplate` bean for service-to-service calls
 - Enrollment requests are idempotent for the same user and course
 - Enrollment records are persisted at each lifecycle stage so failures remain traceable
-- Hystrix fallback support is enabled for enrollment requests
+- Resilience4j fallback support is enabled for enrollment requests
 - RabbitMQ host configuration is provided for local event publishing
 
 ## Stack
@@ -160,7 +160,7 @@ sequenceDiagram
 - Spring Web
 - Spring Cloud LoadBalancer
 - Spring Cloud OpenFeign
-- Hystrix
+- Resilience4j
 - RabbitMQ
 - MySQL
 - Lombok
@@ -172,7 +172,7 @@ sequenceDiagram
 
 ## Metadata Tags
 
-`java`, `spring-boot`, `spring-cloud`, `microservices`, `event-driven-architecture`, `rabbitmq`, `idempotency`, `hystrix`, `feign`, `jpa`, `mysql`, `rest-api`, `integration-tests`
+`java`, `spring-boot`, `spring-cloud`, `microservices`, `event-driven-architecture`, `rabbitmq`, `idempotency`, `resilience4j`, `feign`, `jpa`, `mysql`, `rest-api`, `integration-tests`
 
 ## Notes
 

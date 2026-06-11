@@ -1,5 +1,9 @@
 # Changelog
 
+## v9.3.0 - 2026-06-11
+
+- Replaced deprecated Netflix Hystrix circuit breaker with Spring Cloud Circuit Breaker Resilience4j
+
 ## v9.2.0 - 2026-06-11
 
 - Added global exception handler to map `RuntimeException` to 422 Unprocessable Entity for enrollment errors

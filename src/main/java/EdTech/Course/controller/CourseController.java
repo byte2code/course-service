@@ -5,7 +5,7 @@ import EdTech.Course.dto.ResponseMessage;
 import EdTech.Course.model.Course;
 import EdTech.Course.model.CourseMaterial;
 import EdTech.Course.service.CourseService;
-import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -75,7 +75,7 @@ public class CourseController {
 
     @PostMapping("/course/{courseId}/register/{userId}")
     @ResponseStatus(HttpStatus.CREATED)
-    @HystrixCommand(fallbackMethod = "registerForCourseFallback")
+    @CircuitBreaker(name = "enrollment", fallbackMethod = "registerForCourseFallback")
     public ResponseMessage registerForCourse(
             @PathVariable Long courseId,
             @PathVariable Long userId,
@@ -84,9 +84,10 @@ public class CourseController {
     }
 
     public ResponseMessage registerForCourseFallback(
-            @PathVariable Long courseId,
-            @PathVariable Long userId,
-            @RequestHeader(value = "Authorization", required = false) String authorizationHeader){
+            Long courseId,
+            Long userId,
+            String authorizationHeader,
+            Throwable t){
         return new ResponseMessage("Services not available");
     }
 
