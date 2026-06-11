@@ -59,4 +59,17 @@ class CourseControllerIntegrationTest {
 
         verify(courseService).createEnrollmentForCourse(3L, 9L, null);
     }
+
+    @Test
+    void registerForCourseReturnsUnprocessableEntityWhenRuntimeExceptionThrown() throws Exception {
+        when(courseService.createEnrollmentForCourse(3L, 9L, null))
+                .thenThrow(new RuntimeException("User not found"));
+
+        mockMvc.perform(post("/courses/course/3/register/9")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.message").value("User not found"));
+
+        verify(courseService).createEnrollmentForCourse(3L, 9L, null);
+    }
 }

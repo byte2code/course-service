@@ -1,5 +1,9 @@
 # Changelog
 
+## v9.2.0 - 2026-06-11
+
+- Added global exception handler to map `RuntimeException` to 422 Unprocessable Entity for enrollment errors
+
 ## v9.1.0 - 2026-06-11
 
 - Renamed `courseController` class to `CourseController` to follow standard Java PascalCase naming conventions
