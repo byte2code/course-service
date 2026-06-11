@@ -76,11 +76,17 @@ public class courseController {
     @PostMapping("/course/{courseId}/register/{userId}")
     @ResponseStatus(HttpStatus.CREATED)
     @HystrixCommand(fallbackMethod = "registerForCourseFallback")
-    public ResponseMessage registerForCourse(@PathVariable Long courseId, @PathVariable Long userId){
-        return courseService.createEnrollmentForCourse(courseId, userId);
+    public ResponseMessage registerForCourse(
+            @PathVariable Long courseId,
+            @PathVariable Long userId,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader){
+        return courseService.createEnrollmentForCourse(courseId, userId, authorizationHeader);
     }
 
-    public ResponseMessage registerForCourseFallback(@PathVariable Long courseId, @PathVariable Long userId){
+    public ResponseMessage registerForCourseFallback(
+            @PathVariable Long courseId,
+            @PathVariable Long userId,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader){
         return new ResponseMessage("Services not available");
     }
 

@@ -13,6 +13,7 @@ import EdTech.Course.model.EnrollmentStatus;
 import EdTech.Course.repository.CourseRepository;
 import EdTech.Course.repository.EnrollmentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -40,6 +41,9 @@ public class CourseService {
 
     @Autowired
     private CourseEventPublisher courseEventPublisher;
+
+    @Value("${course.user-service.authorization-token:Bearer TODO_REPLACE_WITH_REQUEST_HEADER}")
+    private String userServiceAuthorizationToken = "Bearer TODO_REPLACE_WITH_REQUEST_HEADER";
 
     public List<Course> getAllCourses() {
         return courseRepository.findAll();
@@ -104,8 +108,12 @@ public class CourseService {
     }
 
     public ResponseMessage createEnrollmentForCourse(Long courseId, Long userId) {
+        return createEnrollmentForCourse(courseId, userId, null);
+    }
+
+    public ResponseMessage createEnrollmentForCourse(Long courseId, Long userId, String authorizationHeader) {
         try {
-            return createEnrollmentInternal(courseId, userId);
+            return createEnrollmentInternal(courseId, userId, authorizationHeader);
         } catch (DataIntegrityViolationException ex) {
             Enrollment existingEnrollment = enrollmentRepository.findByUserIdAndCourseId(userId, courseId)
                     .orElseThrow(() -> ex);
@@ -119,7 +127,7 @@ public class CourseService {
         }
     }
 
-    private ResponseMessage createEnrollmentInternal(Long courseId, Long userId) {
+    private ResponseMessage createEnrollmentInternal(Long courseId, Long userId, String authorizationHeader) {
         Enrollment existingEnrollment = enrollmentRepository.findByUserIdAndCourseId(userId, courseId).orElse(null);
         if (existingEnrollment != null) {
             courseEventPublisher.publishNotificationEvent(
@@ -142,8 +150,8 @@ public class CourseService {
         );
 
         try {
-            // call to user to find user is available
-            String token = "Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJuIiwiaWF0IjoxNjkyNjMyNzA5LCJleHAiOjE2OTI3MTkxMDl9.6rEgbP35a-2nvXPtPDfw9mg6qLMt43DE1ElqXZcOZJ0wdtRenPEXCxYWBjwGNkG8o-B3ZxUDb431-EU0DuMqzw";
+            // TODO: remove the config fallback once Authorization is forwarded end-to-end from the gateway.
+            String token = resolveAuthorizationToken(authorizationHeader);
             Object object = userService.getUserById(token, userId);
             if (object == null) {
                 markEnrollmentFailed(enrollment, "User not found");
@@ -214,6 +222,13 @@ public class CourseService {
             );
             throw new RuntimeException(ex);
         }
+    }
+
+    private String resolveAuthorizationToken(String authorizationHeader) {
+        if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+            return authorizationHeader;
+        }
+        return userServiceAuthorizationToken;
     }
 
     private ResponseMessage buildDuplicateResponse(Enrollment enrollment) {

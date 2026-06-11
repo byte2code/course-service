@@ -1,4 +1,6 @@
 spring:
+  application:
+    name: course-service
   rabbitmq:
     host: localhost
     port: 5672
@@ -14,7 +16,8 @@ spring:
         dialect: org.hibernate.dialect.MySQL8Dialect
     hibernate:
       ddl-auto: update
-  application:
-    name: course-service
+course:
+  user-service:
+    authorization-token: Bearer TODO_REPLACE_WITH_REQUEST_HEADER
 server:
   port: 8081

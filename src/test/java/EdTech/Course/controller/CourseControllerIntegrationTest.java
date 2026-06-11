@@ -49,7 +49,7 @@ class CourseControllerIntegrationTest {
 
     @Test
     void registerForCourseReturnsCreatedResponseThroughControllerLayer() throws Exception {
-        when(courseService.createEnrollmentForCourse(3L, 9L))
+        when(courseService.createEnrollmentForCourse(3L, 9L, null))
                 .thenReturn(new ResponseMessage("Student Enrolled Successfully"));
 
         mockMvc.perform(post("/courses/course/3/register/9")
@@ -57,6 +57,6 @@ class CourseControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.message").value("Student Enrolled Successfully"));
 
-        verify(courseService).createEnrollmentForCourse(3L, 9L);
+        verify(courseService).createEnrollmentForCourse(3L, 9L, null);
     }
 }
