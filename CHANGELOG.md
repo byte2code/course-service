@@ -1,5 +1,9 @@
 # Changelog
 
+## v9.1.0 - 2026-06-11
+
+- Renamed `courseController` class to `CourseController` to follow standard Java PascalCase naming conventions
+
 ## v9.0.0 - 2026-06-07
 
 - Added Spring-based integration-style tests for the controller and service layers
