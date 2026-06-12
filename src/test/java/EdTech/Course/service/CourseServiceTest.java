@@ -72,7 +72,7 @@ class CourseServiceTest {
         List<EnrollmentStatus> states = new ArrayList<>();
         when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
         when(enrollmentRepository.findByUserIdAndCourseId(2L, 1L)).thenReturn(Optional.empty());
-        when(userService.getUserById(anyString(), eq(2L))).thenReturn(new Object());
+        when(userService.getUserById(any(), eq(2L))).thenReturn(new Object());
         when(enrollmentRepository.save(any(Enrollment.class))).thenAnswer(invocation -> {
             Enrollment enrollment = invocation.getArgument(0);
             states.add(enrollment.getStatus());
@@ -107,7 +107,7 @@ class CourseServiceTest {
         List<EnrollmentStatus> states = new ArrayList<>();
         when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
         when(enrollmentRepository.findByUserIdAndCourseId(2L, 1L)).thenReturn(Optional.empty());
-        when(userService.getUserById(anyString(), eq(2L))).thenReturn(new Object());
+        when(userService.getUserById(any(), eq(2L))).thenReturn(new Object());
         when(enrollmentRepository.save(any(Enrollment.class))).thenAnswer(invocation -> {
             Enrollment enrollment = invocation.getArgument(0);
             states.add(enrollment.getStatus());
@@ -145,7 +145,7 @@ class CourseServiceTest {
         List<EnrollmentStatus> states = new ArrayList<>();
         when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
         when(enrollmentRepository.findByUserIdAndCourseId(2L, 1L)).thenReturn(Optional.empty());
-        when(userService.getUserById(anyString(), eq(2L))).thenReturn(null);
+        when(userService.getUserById(any(), eq(2L))).thenReturn(null);
         when(enrollmentRepository.save(any(Enrollment.class))).thenAnswer(invocation -> {
             Enrollment enrollment = invocation.getArgument(0);
             states.add(enrollment.getStatus());

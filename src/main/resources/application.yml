@@ -18,6 +18,19 @@ spring:
       ddl-auto: update
 course:
   user-service:
-    authorization-token: ${USER_SERVICE_AUTH_TOKEN:changeme}
+    authorization-token: ${USER_SERVICE_AUTH_TOKEN:}
 server:
   port: 8081
+resilience4j:
+  circuitbreaker:
+    instances:
+      courseEnrollment:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10000
+        permitted-number-of-calls-in-half-open-state: 3
+  retry:
+    instances:
+      courseEnrollment:
+        max-attempts: 3
+        wait-duration: 500

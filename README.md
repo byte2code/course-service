@@ -169,7 +169,21 @@ sequenceDiagram
 - MySQL
 - Lombok
 
-## Test Coverage
+## Testing
+
+Run the full test suite and generate a JaCoCo coverage report:
+
+```bash
+mvn clean verify
+```
+
+After the build completes, open the HTML coverage report at:
+
+```
+target/site/jacoco/index.html
+```
+
+JaCoCo is configured to enforce a minimum 70% instruction coverage on the service layer (`EdTech.Course.service`). The build will fail if coverage drops below this threshold.
 
 - Unit tests cover the enrollment state machine, duplicate handling, and broker payload publishing.
 - Spring-based integration-style tests cover HTTP routing and service wiring with mocked collaborators.

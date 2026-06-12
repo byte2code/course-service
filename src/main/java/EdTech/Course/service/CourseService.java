@@ -42,8 +42,8 @@ public class CourseService {
     @Autowired
     private CourseEventPublisher courseEventPublisher;
 
-    @Value("${course.user-service.authorization-token:Bearer TODO_REPLACE_WITH_REQUEST_HEADER}")
-    private String userServiceAuthorizationToken = "Bearer TODO_REPLACE_WITH_REQUEST_HEADER";
+    @Value("${course.user-service.authorization-token:}")
+    private String userServiceAuthorizationToken;
 
     public List<Course> getAllCourses() {
         return courseRepository.findAll();

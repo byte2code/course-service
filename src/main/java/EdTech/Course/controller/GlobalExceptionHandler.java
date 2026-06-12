@@ -14,4 +14,10 @@ public class GlobalExceptionHandler {
     public ResponseMessage handleRuntimeException(RuntimeException ex) {
         return new ResponseMessage(ex.getMessage());
     }
+
+    @ExceptionHandler(Exception.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ResponseMessage handleGenericException(Exception ex) {
+        return new ResponseMessage("Internal server error");
+    }
 }
