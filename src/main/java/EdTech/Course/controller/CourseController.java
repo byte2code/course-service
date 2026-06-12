@@ -13,8 +13,14 @@ import org.springframework.web.bind.annotation.*;
 import javax.ws.rs.PathParam;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 @RestController
 @RequestMapping("/courses")
+@Tag(name = "Course Controller", description = "Course and Enrollment Management Endpoints")
 public class CourseController {
 
 
@@ -76,6 +82,11 @@ public class CourseController {
     @PostMapping("/course/{courseId}/register/{userId}")
     @ResponseStatus(HttpStatus.CREATED)
     @CircuitBreaker(name = "enrollment", fallbackMethod = "registerForCourseFallback")
+    @Operation(summary = "Register User for Course", description = "Registers a user for a specific course and triggers enrollment state machine events")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Successfully registered or duplicate request ignored"),
+            @ApiResponse(responseCode = "422", description = "Fallback: Services not available")
+    })
     public ResponseMessage registerForCourse(
             @PathVariable Long courseId,
             @PathVariable Long userId,
