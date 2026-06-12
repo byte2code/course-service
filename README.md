@@ -1,6 +1,10 @@
 # Course Service
 
+![CI](https://github.com/byte2code/course-service/actions/workflows/ci.yml/badge.svg)
+
 Spring Boot service for managing courses in an EdTech platform. The application models courses, course materials, and enrollments and exposes REST endpoints for course lookup, lifecycle management, and user enrollment.
+
+Enrolling a student in an online course sounds simple, but it involves coordinating user verification, payment processing, and failure recovery across multiple microservices. This service solves that by modeling the enrollment lifecycle as an explicit state machine with idempotent duplicate handling, using Resilience4j circuit breakers for fault tolerance and RabbitMQ events so downstream systems can react to each state transition without tight coupling.
 
 ## Overview
 

@@ -4,12 +4,12 @@ spring:
   rabbitmq:
     host: localhost
     port: 5672
-    username: guest
-    password: guest
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:changeme}
   datasource:
-    url: jdbc:mysql://localhost:3306/edtech_course_service?useSSL=false
-    username: root
-    password: 1234
+    url: ${DATASOURCE_URL:jdbc:mysql://localhost:3306/edtech_course_service?useSSL=false}
+    username: ${DATASOURCE_USERNAME:root}
+    password: ${DATASOURCE_PASSWORD:changeme}
   jpa:
     properties:
       hibernate:
@@ -18,6 +18,6 @@ spring:
       ddl-auto: update
 course:
   user-service:
-    authorization-token: Bearer TODO_REPLACE_WITH_REQUEST_HEADER
+    authorization-token: ${USER_SERVICE_AUTH_TOKEN:changeme}
 server:
   port: 8081
