@@ -1,11 +1,13 @@
 package EdTech.Course.service;
 
+import EdTech.Course.dto.CourseDto;
 import EdTech.Course.dto.Payment;
 import EdTech.Course.dto.ResponseMessage;
 import EdTech.Course.event.CourseEventType;
 import EdTech.Course.feign.PaymentService;
 import EdTech.Course.feign.UserService;
 import EdTech.Course.model.Course;
+import EdTech.Course.model.CourseMaterial;
 import EdTech.Course.model.Enrollment;
 import EdTech.Course.model.EnrollmentStatus;
 import EdTech.Course.repository.CourseRepository;
@@ -190,5 +192,93 @@ class CourseServiceTest {
         verify(paymentService, never()).createPayment(any(Payment.class));
         verify(enrollmentRepository, never()).save(any(Enrollment.class));
         verify(courseEventPublisher).publishNotificationEvent(any(Enrollment.class), eq(course), eq(CourseEventType.DUPLICATE_REQUEST), eq("Duplicate enrollment request ignored"));
+    }
+
+    @Test
+    void getAllCoursesReturnsList() {
+        List<Course> courses = List.of(new Course(), new Course());
+        when(courseRepository.findAll()).thenReturn(courses);
+        List<Course> result = courseService.getAllCourses();
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void getCourseByIdReturnsCourse() {
+        Course course = new Course();
+        course.setId(1L);
+        when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
+        Course result = courseService.getCourseById(1L);
+        assertNotNull(result);
+        assertEquals(1L, result.getId());
+    }
+
+    @Test
+    void createCourseSavesCourse() {
+        CourseDto dto = new CourseDto();
+        dto.setName("Test");
+        dto.setCourseMaterial(new ArrayList<>());
+        dto.setEnrollments(new ArrayList<>());
+        courseService.createCourse(dto);
+        verify(courseRepository).save(any(Course.class));
+    }
+
+    @Test
+    void updateCourseUpdatesExistingCourse() {
+        Course course = new Course();
+        course.setId(1L);
+        when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
+        
+        CourseDto dto = new CourseDto();
+        dto.setName("Updated");
+        dto.setCourseMaterial(new ArrayList<>());
+        dto.setEnrollments(new ArrayList<>());
+        courseService.updateCourse(1L, dto);
+        
+        verify(courseRepository).save(course);
+        assertEquals("Updated", course.getName());
+    }
+
+    @Test
+    void updateCourseThrowsExceptionIfNotFound() {
+        when(courseRepository.findById(1L)).thenReturn(Optional.empty());
+        
+        CourseDto dto = new CourseDto();
+        assertThrows(RuntimeException.class, () -> courseService.updateCourse(1L, dto));
+    }
+
+    @Test
+    void deleteCourseDeletesById() {
+        courseService.deleteCourse(1L);
+        verify(courseRepository).deleteById(1L);
+    }
+
+    @Test
+    void getCourseByNameReturnsCourse() {
+        Course course = new Course();
+        course.setName("Java");
+        when(courseRepository.findByName("Java")).thenReturn(course);
+        Course result = courseService.getCourseByName("Java");
+        assertNotNull(result);
+        assertEquals("Java", result.getName());
+    }
+
+    @Test
+    void getCourseByInstructorReturnsCourse() {
+        Course course = new Course();
+        course.setInstructor("Bob");
+        when(courseRepository.findByInstructor("Bob")).thenReturn(course);
+        Course result = courseService.getCourseByInstructor("Bob");
+        assertNotNull(result);
+        assertEquals("Bob", result.getInstructor());
+    }
+
+    @Test
+    void getCourseMaterialByCourseIdReturnsMaterials() {
+        Course course = new Course();
+        course.setCourseMaterial(new ArrayList<>());
+        when(courseRepository.findById(1L)).thenReturn(Optional.of(course));
+        
+        List<CourseMaterial> materials = courseService.getCourseMaterialByCourseId(1L);
+        assertNotNull(materials);
     }
 }
