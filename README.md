@@ -1,83 +1,275 @@
 # Course Service
 
 ![CI](https://github.com/byte2code/course-service/actions/workflows/ci.yml/badge.svg)
+![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.13-brightgreen?logo=springboot)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3-orange?logo=rabbitmq)
+![MySQL](https://img.shields.io/badge/MySQL-8-blue?logo=mysql)
 
-Spring Boot service for managing courses in an EdTech platform. The application models courses, course materials, and enrollments and exposes REST endpoints for course lookup, lifecycle management, and user enrollment.
+A production-grade **LMS backend microservice** built with Spring Boot. It models the full lifecycle of online courses — from catalog management and student enrollment to progress tracking, automated certification, and peer reviews — exposing all workflows via clean REST endpoints backed by a resilient, event-driven architecture.
 
-Enrolling a student in an online course sounds simple, but it involves coordinating user verification, payment processing, and failure recovery across multiple microservices. This service solves that by modeling the enrollment lifecycle as an explicit state machine with idempotent duplicate handling, using Resilience4j circuit breakers for fault tolerance and RabbitMQ events so downstream systems can react to each state transition without tight coupling.
+> Enrolling a student in a course sounds simple. In reality it spans user verification, payment processing, idempotency, fault tolerance, and downstream notifications. This service handles all of it while staying decoupled from its collaborators.
 
-## Overview
+---
 
-The service acts as a course catalog and enrollment backend for an EdTech system. Administrators can create and update courses, learners can view course details, and the platform can enroll users into courses while coordinating with user and payment services.
+## Table of Contents
 
-## What it does
+- [What It Does](#what-it-does)
+- [Architecture Overview](#architecture-overview)
+- [API Reference](#api-reference)
+- [Enrollment Flow](#enrollment-flow)
+- [LMS Features — Progress, Certificates, Ratings](#lms-features)
+- [Event-Driven Design](#event-driven-design)
+- [Cross-Repo Integration (CNKart → EdTech)](#cross-repo-integration)
+- [Observability](#observability)
+- [Security](#security)
+- [Data Model](#data-model)
+- [Performance Baseline](#performance-baseline)
+- [Running Locally](#running-locally)
+- [Testing](#testing)
+- [Tech Stack](#tech-stack)
 
-- List all courses
-- Retrieve courses by id, name, or instructor
-- Inspect course materials for a course
-- Create, update, and delete courses
-- Enroll a user in a course with a persisted lifecycle state machine
-- Make enrollment idempotent so duplicate requests reuse the existing enrollment
-- Verify users through a user-service Feign client before enrollment
-- Create a payment record through a payment-service Feign client after enrollment
-- Publish enrollment, payment, and notification events for downstream workflows
-- Provide a Resilience4j fallback for enrollment failures
-- Persist course, material, and enrollment data with JPA
-- Return simple success/error messages for course operations
+---
 
-## Main API
+## What It Does
 
-- `GET /courses`
-- `GET /courses/{id}`
-- `GET /courses/name/?name=...`
-- `GET /courses/courseMaterial/?id=...`
-- `GET /courses/instructor/?instructor=...`
-- `POST /courses`
-- `PUT /courses/{id}`
-- `DELETE /courses/{id}`
-- `POST /courses/course/{courseId}/register/{userId}`
+| Capability | Description |
+|---|---|
+| 📚 Course Catalog | Create, update, delete, and search courses by id, name, or instructor |
+| 🎓 Student Enrollment | Full lifecycle state machine with idempotent duplicate handling |
+| ✅ Progress Tracking | Students mark materials complete; progress is persisted per user |
+| 🏆 Certificate Issuance | Auto-published via RabbitMQ when all materials are completed |
+| ⭐ Ratings & Reviews | Only enrolled students can rate; average rating served on every course response |
+| 📡 Event Publishing | RabbitMQ events for every enrollment lifecycle transition |
+| 🔗 Cross-Repo Trigger | Listens for CNKart `order.confirmed` → auto-enrolls buyer in a course bundle |
+| 🔒 Security | OAuth2 Resource Server with JWT, `SecurityAuditFilter` logging every access |
+| 🔍 Observability | Spring Cloud Sleuth + Zipkin tracing, Micrometer + Prometheus metrics |
+| 🧪 Testcontainers | Integration tests spin up real MySQL + RabbitMQ containers — no H2 mocks |
+| ⚡ Resilience | Resilience4j circuit-breaker + retry on all external service calls |
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph TD
+    subgraph Clients
+        A[REST Client] 
+        B[CNKart Order Service]
+    end
+
+    subgraph EdTech Course Service
+        C[CourseController]
+        D[CourseProgressController]
+        E[CourseService]
+        F[CourseProgressService]
+        G[CourseEventPublisher]
+        H[OrderEventListener]
+        I[SecurityAuditFilter]
+        J[SecurityConfig / OAuth2]
+    end
+
+    subgraph Infrastructure
+        K[(MySQL)]
+        L[(RabbitMQ)]
+        M[Zipkin]
+        N[Prometheus]
+    end
+
+    subgraph Collaborators
+        O[user-service via Feign]
+        P[payment-service via Feign]
+    end
+
+    A -->|JWT Bearer Token| J
+    J --> I
+    I --> C
+    I --> D
+    C --> E
+    D --> F
+    E --> O
+    E --> P
+    E --> G
+    F --> G
+    G -->|course.lifecycle.exchange| L
+    B -->|cnkart.order.exchange| L
+    L --> H
+    H --> E
+    E --> K
+    F --> K
+    E -.->|traces| M
+    E -.->|metrics| N
+```
+
+---
+
+## API Reference
+
+### Courses
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/courses` | Public | List all courses with average ratings |
+| `GET` | `/courses/{id}` | Public | Get course by ID with average rating |
+| `GET` | `/courses/name/?name=` | Public | Search by name |
+| `GET` | `/courses/instructor/?instructor=` | Public | Search by instructor |
+| `GET` | `/courses/courseMaterial/?id=` | Public | Get materials for a course |
+| `POST` | `/courses` | 🔒 Required | Create a new course |
+| `PUT` | `/courses/{id}` | 🔒 Required | Update a course |
+| `DELETE` | `/courses/{id}` | 🔒 Required | Delete a course |
+
+### Enrollment
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/courses/course/{courseId}/register/{userId}` | 🔒 Required | Enroll a user (idempotent) |
+
+### Progress Tracking
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/progress` | 🔒 Required | Mark a material as complete |
+| `GET` | `/progress/{userId}` | 🔒 Required | Get all progress records for a user |
+
+### Ratings & Reviews
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/courses/{courseId}/rate` | 🔒 Enrolled only | Submit a rating (1–5) with optional comment |
+
+---
 
 ## Enrollment Flow
 
-The v9 snapshot keeps the Feign-based integration but adds explicit enrollment states, idempotent duplicate handling, broker-side lifecycle events, and Spring-backed integration tests so the workflow is easier to trace and reason about.
-
-1. The API receives a course id and user id.
-2. The service first checks whether an enrollment already exists for the same user and course.
-3. If a record already exists, the service returns the existing enrollment state and does not create a second payment or enrollment row.
-4. If no record exists, the service creates an `Enrollment` record in `INITIATED` state.
-5. The service calls the user-service client to verify the user exists and advances the record to `USER_VERIFIED`.
-6. The enrollment moves to `PAYMENT_PENDING` before the payment-service call.
-7. If payment succeeds, the record is updated to `ENROLLED`.
-8. If user verification or payment fails, the record is persisted as `FAILED` before the exception bubbles up to the Resilience4j fallback.
+Enrollment is modelled as an **explicit state machine** persisted at every stage. This means failures are always traceable and duplicate requests are handled gracefully without double-charging.
 
 ### State Machine
 
 ```mermaid
-flowchart LR
-    Initiated[INITIATED] --> Verified[USER_VERIFIED]
-    Verified --> Pending[PAYMENT_PENDING]
-    Pending --> Enrolled[ENROLLED]
-    Initiated --> Failed[FAILED]
-    Verified --> Failed
-    Pending --> Failed
-    Enrolled --> Enrolled
-    Failed --> Failed
+stateDiagram-v2
+    [*] --> INITIATED : POST register
+    INITIATED --> USER_VERIFIED : Feign → user-service OK
+    INITIATED --> FAILED : user-service error
+    USER_VERIFIED --> PAYMENT_PENDING : preparing charge
+    PAYMENT_PENDING --> ENROLLED : Feign → payment-service OK
+    PAYMENT_PENDING --> FAILED : payment-service error
+    ENROLLED --> ENROLLED : duplicate request (idempotent)
+    FAILED --> FAILED : duplicate request (idempotent)
 ```
 
-## Event Publishing
+### Step-by-Step
 
-The v8 snapshot adds RabbitMQ-backed event publishing without changing the synchronous enrollment contract. The service now emits JSON messages for lifecycle transitions, payment requests, and duplicate-request notifications.
+1. API receives `{courseId, userId}`.
+2. Checks for an existing enrollment by `(userId, courseId)` idempotency key.
+3. If found → returns existing state, publishes `DUPLICATE_REQUEST` event. **No double charge.**
+4. Creates `Enrollment` in `INITIATED` state.
+5. Calls `user-service` via Feign → transitions to `USER_VERIFIED`.
+6. Moves to `PAYMENT_PENDING`, calls `payment-service` via Feign.
+7. On success → `ENROLLED`, publishes `CONFIRMED` event.
+8. On any failure → `FAILED`, publishes `FAILED` + `NOTIFICATION` events. Resilience4j fallback kicks in.
 
-### Event Types
+---
 
-- `ENROLLMENT_INITIATED`
-- `USER_VERIFIED`
-- `PAYMENT_REQUESTED`
-- `CONFIRMED`
-- `FAILED`
-- `DUPLICATE_REQUEST`
+## LMS Features
 
-### Flow
+### 1. Progress Tracking
+
+Students mark individual `CourseMaterial` items as completed. The system validates that the learner is actually enrolled before accepting a progress update.
+
+```
+POST /progress
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "userId": 42,
+  "materialId": 7,
+  "completed": true
+}
+```
+
+```
+GET /progress/42
+→ [
+    { "materialId": 7, "completed": true, "completedAt": "2026-07-17T10:00:00" },
+    { "materialId": 8, "completed": false, "completedAt": null }
+  ]
+```
+
+### 2. Automated Certificate Issuance
+
+When a student marks the **last remaining material** of a course as complete, a `CertificateEarned` event is automatically published to RabbitMQ — no polling, no scheduled job.
+
+```mermaid
+sequenceDiagram
+    participant Student
+    participant ProgressController
+    participant CourseProgressService
+    participant CourseEventPublisher
+    participant RabbitMQ
+
+    Student->>ProgressController: POST /progress (last material)
+    ProgressController->>CourseProgressService: markComplete(userId, materialId)
+    CourseProgressService->>CourseProgressService: allMaterialsComplete?
+    CourseProgressService->>CourseEventPublisher: publishCertificateEarned(courseId, userId)
+    CourseEventPublisher->>RabbitMQ: CERTIFICATE.EARNED on course.lifecycle.exchange
+    Note over RabbitMQ: Downstream: email service, badge service, etc.
+```
+
+### 3. Ratings & Reviews
+
+Peer reviews are gated by domain: only users with an `ENROLLED` status can submit a rating.
+
+```
+POST /courses/5/rate
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "userId": 42,
+  "rating": 5,
+  "comment": "Excellent course on distributed systems!"
+}
+```
+
+The unique constraint `(userId, courseId)` prevents duplicate reviews. Average rating is aggregated from `CourseRating` and included in **every** course response:
+
+```json
+{
+  "course": { "id": 5, "name": "Distributed Systems", "instructor": "Bipin Verma", ... },
+  "averageRating": 4.7
+}
+```
+
+---
+
+## Event-Driven Design
+
+### Outbound Events (Course Service → RabbitMQ)
+
+| Exchange | Routing Key | Payload | Trigger |
+|---|---|---|---|
+| `course.lifecycle.exchange` | `course.enrollment.initiated` | `CourseEvent` | New enrollment created |
+| `course.lifecycle.exchange` | `course.enrollment.confirmed` | `CourseEvent` | Payment succeeded |
+| `course.lifecycle.exchange` | `course.enrollment.failed` | `CourseEvent` | Any step fails |
+| `course.lifecycle.exchange` | `course.payment.requested` | `CourseEvent` | Pre-payment |
+| `course.lifecycle.exchange` | `course.notification.*` | `CourseEvent` | Failure + duplicates |
+| `course.lifecycle.exchange` | `course.certificate.earned` | `CourseEvent` | All materials complete |
+
+**Event Payload Shape:**
+```json
+{
+  "enrollmentId": 101,
+  "courseId": 5,
+  "userId": 42,
+  "correlationKey": "5_42",
+  "status": "CONFIRMED",
+  "message": "Enrollment successful",
+  "timestamp": "2026-07-17T10:00:00"
+}
+```
+
+### Enrollment Sequence Diagram
 
 ```mermaid
 sequenceDiagram
@@ -88,149 +280,292 @@ sequenceDiagram
     participant RabbitMQ
 
     Client->>CourseAPI: POST /courses/course/{courseId}/register/{userId}
-    CourseAPI->>CourseAPI: Check enrollment idempotency key
+    CourseAPI->>CourseAPI: Check idempotency key (userId + courseId)
 
     alt Existing enrollment found
-        CourseAPI->>RabbitMQ: Publish duplicate-request notification
-        CourseAPI-->>Client: Return existing state message
+        CourseAPI->>RabbitMQ: DUPLICATE_REQUEST event
+        CourseAPI-->>Client: 200 — existing state returned
     else New enrollment
-        CourseAPI->>RabbitMQ: Publish enrollment initiated
-        CourseAPI->>UserSvc: Verify user
-
+        CourseAPI->>RabbitMQ: ENROLLMENT_INITIATED
+        CourseAPI->>UserSvc: GET user/{userId}
         alt User not found
-            CourseAPI->>RabbitMQ: Publish failed + notification events
-            CourseAPI-->>Client: Return failure response
+            CourseAPI->>RabbitMQ: FAILED + NOTIFICATION events
+            CourseAPI-->>Client: 422 Unprocessable Entity
         else User verified
-            CourseAPI->>RabbitMQ: Publish user verified
-            CourseAPI->>RabbitMQ: Publish payment requested
-            CourseAPI->>PaySvc: Create payment
-
+            CourseAPI->>RabbitMQ: USER_VERIFIED + PAYMENT_REQUESTED
+            CourseAPI->>PaySvc: POST payment
             alt Payment succeeds
-                CourseAPI->>RabbitMQ: Publish enrollment confirmed
-                CourseAPI-->>Client: Return success response
+                CourseAPI->>RabbitMQ: CONFIRMED event
+                CourseAPI-->>Client: 201 Created
             else Payment fails
-                CourseAPI->>RabbitMQ: Publish failed + notification events
-                CourseAPI-->>Client: Return failure response
+                CourseAPI->>RabbitMQ: FAILED + NOTIFICATION events
+                CourseAPI-->>Client: 422 Unprocessable Entity
             end
         end
     end
 ```
 
-### Messaging Details
-
-- Exchange: `course.lifecycle.exchange`
-- Routing keys: `course.enrollment.*`, `course.payment.*`, `course.notification.*`
-- Payloads are serialized as JSON so future consumers can bind without changing the service contract
-- Event payloads include the enrollment id, course id, user id, correlation key, lifecycle status, message, and timestamp
-- Messaging is best-effort and does not block the enrollment workflow if the broker is unavailable
+---
 
 ## Cross-Repo Integration
 
-This service natively listens for events from the CNKart (e-commerce) domain to automatically trigger course enrollments when course bundles are purchased. This demonstrates event-driven choreography between entirely decoupled systems in the portfolio.
+This service participates in **cross-portfolio choreography**. When a customer purchases a course bundle on the CNKart e-commerce platform, the EdTech service is automatically notified and triggers enrollment — with zero direct coupling between the two systems.
 
 ```mermaid
 sequenceDiagram
+    participant Buyer
     participant CNKart as CNKart Order Service
-    participant RabbitMQ as RabbitMQ Broker
+    participant Broker as RabbitMQ Broker
     participant EdTech as EdTech Course Service
-    
-    CNKart->>RabbitMQ: Publish "order.confirmed" to cnkart.order.exchange
-    RabbitMQ-->>EdTech: Consume "order.confirmed" from edtech.order.confirmed.queue
-    EdTech->>EdTech: Extract customerId from event
-    EdTech->>EdTech: Trigger CourseService#createEnrollmentForCourse
-    Note over EdTech: Learner is automatically enrolled in the purchased bundle!
+    participant DB as MySQL
+
+    Buyer->>CNKart: Place order for course bundle
+    CNKart->>Broker: Publish "order.confirmed" → cnkart.order.exchange
+    Broker-->>EdTech: OrderEventListener consumes from edtech.order.confirmed.queue
+    EdTech->>EdTech: Extract customerId from event payload
+    EdTech->>DB: createEnrollmentForCourse(bundleCourseId, customerId)
+    Note over EdTech,DB: Learner is automatically enrolled!
 ```
 
-## Integration Points
+**Listener binding:**
+```yaml
+Exchange : cnkart.order.exchange  (type: topic)
+Queue    : edtech.order.confirmed.queue
+Key      : order.confirmed
+```
 
-- `user-service` via `EdTech.Course.feign.UserService`
-- `payment-service` via `EdTech.Course.feign.PaymentService`
-- RabbitMQ via `EdTech.Course.service.CourseEventPublisher` (outbound)
-- RabbitMQ via `EdTech.Course.event.OrderEventListener` (inbound from CNKart)
-- `RestTemplate` bean remains available for compatibility with the existing configuration
+---
 
-## LMS Features (Progress, Certificates, Ratings)
+## Observability
 
-As the service evolves into a full-fledged Learning Management System (LMS) backend:
-- **Progress Tracking**: Students can mark individual `CourseMaterial`s as completed.
-- **Automated Certification**: When all materials for a course are marked complete, a `CertificateEarned` event is published via RabbitMQ.
-- **Ratings & Reviews**: Only users with an `ENROLLED` status can rate and review courses, enforcing real domain constraints.
+### Distributed Tracing (Spring Cloud Sleuth + Zipkin)
+
+Every request is tagged with a `traceId` and `spanId` that flow across all downstream Feign calls and RabbitMQ messages. Correlation IDs appear in every log line automatically:
+
+```log
+2026-07-17 10:00:00 INFO [course-service,6a5346b258484bc2,c24080ee3168f33d] c.c.CourseService : Enrollment initiated for user 42 in course 5
+```
+
+Start Zipkin locally via Docker Compose and open `http://localhost:9411`:
+
+```bash
+docker compose up zipkin
+```
+
+### Metrics (Micrometer + Prometheus)
+
+| Endpoint | Description |
+|---|---|
+| `GET /actuator/health` | Liveness and readiness |
+| `GET /actuator/metrics` | All JVM + application metrics |
+| `GET /actuator/prometheus` | Prometheus scrape endpoint |
+
+Configure your `prometheus.yml` to scrape:
+```yaml
+scrape_configs:
+  - job_name: 'course-service'
+    static_configs:
+      - targets: ['localhost:8081']
+    metrics_path: '/actuator/prometheus'
+```
+
+---
+
+## Security
+
+The service is secured as an **OAuth2 Resource Server** expecting a JWT Bearer token on all write endpoints.
+
+### Access Rules
+
+| Pattern | Rule |
+|---|---|
+| `GET /courses/**` | **Public** — no token required |
+| `GET /actuator/**`, `/swagger-ui/**` | **Public** — ops and docs |
+| All other requests | **Authenticated** — valid JWT required |
+
+### SecurityAuditFilter
+
+Every authenticated request is recorded with the caller's identity and the resource accessed:
+
+```log
+SECURITY_AUDIT: User 'john.doe' with authorities '[ROLE_USER]' accessed POST /courses/course/5/register/42
+```
+
+This log is separate from the business log and gives a full access trail without touching `AuditLog` entities.
+
+### JWT Configuration
+
+Add your issuer URI to `application.yml` or via environment variable:
+
+```yaml
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI:http://localhost:8080/realms/edtech}
+```
+
+---
 
 ## Data Model
 
-- `Course` represents the core catalog item
-- `CourseMaterial` stores content tied to a course
-- `Enrollment` links users to courses
-- `EnrollmentStatus` stores lifecycle states for the enrollment workflow
-- `userId + course_id` is treated as the idempotency key for enrollment requests
-- `CourseDto` is used for create and update requests
-- `ResponseMessage` standardizes simple API responses
-- `Payment` is used when forwarding enrollment charges to the payment service
-- `CourseEvent` packages broker-ready lifecycle metadata for downstream consumers
+```mermaid
+erDiagram
+    COURSE ||--o{ COURSE_MATERIAL : "has"
+    COURSE ||--o{ ENROLLMENT : "has"
+    COURSE ||--o{ COURSE_RATING : "has"
+    ENROLLMENT ||--o{ COURSE_PROGRESS : "tracks"
 
-## Configuration
+    COURSE {
+        Long id PK
+        String name
+        String description
+        String instructor
+        Long amount
+    }
+    COURSE_MATERIAL {
+        Long id PK
+        Long course_id FK
+        String title
+        String content
+    }
+    ENROLLMENT {
+        Long id PK
+        Long user_id
+        Long course_id FK
+        EnrollmentStatus status
+        String correlationKey
+    }
+    COURSE_PROGRESS {
+        Long id PK
+        Long user_id
+        Long material_id FK
+        Boolean completed
+        LocalDateTime completedAt
+    }
+    COURSE_RATING {
+        Long id PK
+        Long user_id
+        Long course_id FK
+        int rating
+        String comment
+    }
+```
 
-- Main application port: `8081`
-- Datasource: `edtech_course_service`
-- Hibernate is configured for `update` mode
-- The service uses Spring Boot 2.7.13
-- The app registers a load-balanced `RestTemplate` bean for service-to-service calls
-- Enrollment requests are idempotent for the same user and course
-- Enrollment records are persisted at each lifecycle stage so failures remain traceable
-- Resilience4j fallback support is enabled for enrollment requests
-- RabbitMQ host configuration is provided for local event publishing
+> `(userId, courseId)` is the idempotency key for `Enrollment`.
+> `(userId, courseId)` has a unique constraint on `CourseRating` — one review per student per course.
 
-## Stack
-
-- Java 17
-- Spring Boot 2.7.13
-- Spring Data JPA
-- Spring JDBC
-- Spring Web
-- Spring Cloud LoadBalancer
-- Spring Cloud OpenFeign
-- Resilience4j
-- RabbitMQ
-- MySQL
-- Lombok
+---
 
 ## Performance Baseline
 
-The service includes a load testing script (`scripts/load-test.sh`) utilizing Apache Bench (`ab`) to ensure performance regressions do not slip into production.
+Run the bundled load-test script (requires Apache Bench `ab`):
 
-**Baseline Metrics (`GET /courses` with 50 concurrent users, 1000 requests):**
-- **Throughput (TPS)**: ~450 req/sec
-- **Latency (P50)**: ~80 ms
-- **Latency (P95)**: ~120 ms
-- **Latency (P99)**: ~180 ms
+```bash
+bash scripts/load-test.sh
+```
 
-These metrics serve as a baseline for future architectural changes (e.g., introducing a Redis cache for the catalog).
+**Results — `GET /courses`, 50 concurrent users, 1000 requests:**
+
+| Metric | Value |
+|---|---|
+| Throughput | ~450 req/sec |
+| Latency P50 | ~80 ms |
+| Latency P95 | ~120 ms |
+| Latency P99 | ~180 ms |
+
+These numbers serve as the regression baseline. Future additions (e.g., a Redis course-catalog cache) should be benchmarked against these figures to quantify the improvement.
+
+---
+
+## Running Locally
+
+### Prerequisites
+
+- Java 17
+- Maven 3.8+
+- Docker (for the infrastructure stack)
+
+### 1. Start Infrastructure
+
+```bash
+docker compose up
+```
+
+This starts **MySQL** (port 3306), **RabbitMQ** (port 5672 / management 15672), and **Zipkin** (port 9411).
+
+### 2. Configure Environment
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATASOURCE_URL` | `jdbc:mysql://localhost:3306/edtech_course_service` | DB JDBC URL |
+| `DATASOURCE_USERNAME` | `root` | DB username |
+| `DATASOURCE_PASSWORD` | `changeme` | DB password |
+| `RABBITMQ_USERNAME` | `guest` | RabbitMQ user |
+| `RABBITMQ_PASSWORD` | `changeme` | RabbitMQ password |
+| `USER_SERVICE_AUTH_TOKEN` | _(empty)_ | Token for user-service Feign header |
+| `OAUTH2_ISSUER_URI` | `http://localhost:8080/realms/edtech` | JWT issuer |
+
+### 3. Run the Service
+
+```bash
+mvn spring-boot:run
+```
+
+The API is available at `http://localhost:8081`.  
+Swagger UI: `http://localhost:8081/swagger-ui/index.html`
+
+---
 
 ## Testing
 
-Run the full test suite and generate a JaCoCo coverage report:
+### Unit & Integration Tests
 
 ```bash
 mvn clean verify
 ```
 
-After the build completes, open the HTML coverage report at:
+JaCoCo enforces **≥ 70% instruction coverage** on the service layer. The build fails below this threshold.
 
 ```
-target/site/jacoco/index.html
+target/site/jacoco/index.html   ← HTML coverage report
 ```
 
-JaCoCo is configured to enforce a minimum 70% instruction coverage on the service layer (`EdTech.Course.service`). The build will fail if coverage drops below this threshold.
+### Test Strategy
 
-- Unit tests cover the enrollment state machine, duplicate handling, and broker payload publishing.
-- Spring-based integration-style tests cover HTTP routing and service wiring with mocked collaborators.
+| Layer | Type | What Is Tested |
+|---|---|---|
+| `CourseServiceTest` | Unit (Mockito) | Enrollment state machine, duplicate handling, rating guards |
+| `CourseEventPublisherTest` | Unit (Mockito) | RabbitMQ payload construction for all event types |
+| `CourseServiceIntegrationTest` | Spring `@SpringBootTest` | Full Spring context wired with mocked Feign clients |
+| `CourseControllerIntegrationTest` | Spring `@WebMvcTest` | HTTP routing, request/response mapping, status codes |
+| `FullIntegrationTest` | Testcontainers | Real MySQL + RabbitMQ — happy-path end-to-end |
+
+> `FullIntegrationTest` uses `@Testcontainers` and `@DynamicPropertySource` to wire real containers with zero manual setup. Enable it by running with a live Docker daemon.
+
+---
+
+## Tech Stack
+
+| Category | Technology |
+|---|---|
+| Runtime | Java 17, Spring Boot 2.7.13 |
+| API | Spring Web MVC, SpringDoc OpenAPI (Swagger) |
+| Persistence | Spring Data JPA, Hibernate, MySQL 8 |
+| Messaging | Spring AMQP, RabbitMQ 3 |
+| Service Discovery | Spring Cloud Eureka Client |
+| HTTP Clients | Spring Cloud OpenFeign, RestTemplate |
+| Resilience | Resilience4j (circuit-breaker + retry) |
+| Security | Spring Security, OAuth2 Resource Server (JWT) |
+| Observability | Spring Cloud Sleuth, Zipkin, Micrometer, Prometheus |
+| Testing | JUnit 5, Mockito, Spring Test, Testcontainers |
+| Coverage | JaCoCo (70% service-layer minimum) |
+| Build | Maven 3, GitHub Actions CI |
+| Utilities | Lombok |
+
+---
 
 ## Metadata Tags
 
-`java`, `spring-boot`, `spring-cloud`, `microservices`, `event-driven-architecture`, `rabbitmq`, `idempotency`, `resilience4j`, `feign`, `jpa`, `mysql`, `rest-api`, `integration-tests`
-
-## Notes
-
-- The repository is intended to be extended with additional enrollment and payment workflows.
-- The current service layer includes Feign-based user and payment integration.
-- Generated build output is intentionally not tracked in git.
+`java` · `spring-boot` · `spring-cloud` · `lms` · `microservices` · `event-driven` · `rabbitmq` · `oauth2` · `jwt` · `idempotency` · `resilience4j` · `feign` · `jpa` · `mysql` · `testcontainers` · `zipkin` · `micrometer` · `prometheus` · `rest-api`
