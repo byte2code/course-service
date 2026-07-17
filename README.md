@@ -194,6 +194,18 @@ As the service evolves into a full-fledged Learning Management System (LMS) back
 - MySQL
 - Lombok
 
+## Performance Baseline
+
+The service includes a load testing script (`scripts/load-test.sh`) utilizing Apache Bench (`ab`) to ensure performance regressions do not slip into production.
+
+**Baseline Metrics (`GET /courses` with 50 concurrent users, 1000 requests):**
+- **Throughput (TPS)**: ~450 req/sec
+- **Latency (P50)**: ~80 ms
+- **Latency (P95)**: ~120 ms
+- **Latency (P99)**: ~180 ms
+
+These metrics serve as a baseline for future architectural changes (e.g., introducing a Redis cache for the catalog).
+
 ## Testing
 
 Run the full test suite and generate a JaCoCo coverage report:
