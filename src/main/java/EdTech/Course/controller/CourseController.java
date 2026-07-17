@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import javax.validation.Valid;
 
 @RestController
 @RequestMapping("/courses")
@@ -65,7 +66,7 @@ public class CourseController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create Course", description = "Creates a new course with materials and enrollment slots")
-    public ResponseMessage createCourse(@RequestBody CourseDto courseDto) {
+    public ResponseMessage createCourse(@Valid @RequestBody CourseDto courseDto) {
         courseService.createCourse(courseDto);
         return new ResponseMessage("Course Added Successfully");
     }
@@ -73,7 +74,7 @@ public class CourseController {
     @PutMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
     @Operation(summary = "Update Course", description = "Updates an existing course by ID")
-    public ResponseMessage updateCourse(@PathVariable Long id, @RequestBody CourseDto updatedCourseDto) {
+    public ResponseMessage updateCourse(@PathVariable Long id, @Valid @RequestBody CourseDto updatedCourseDto) {
         courseService.updateCourse(id, updatedCourseDto);
         return new ResponseMessage("Course Updated Successfully");
     }

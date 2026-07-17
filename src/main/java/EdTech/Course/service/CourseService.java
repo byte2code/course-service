@@ -22,25 +22,26 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@lombok.RequiredArgsConstructor
 public class CourseService {
 
-    @Autowired
-    private CourseRepository courseRepository;
+    
+    private final CourseRepository courseRepository;
 
-    @Autowired
-    private EnrollmentRepository enrollmentRepository;
+    
+    private final EnrollmentRepository enrollmentRepository;
 
-    @Autowired
-    private RestTemplate restTemplate;
+    
+    private final RestTemplate restTemplate;
 
-    @Autowired
-    private PaymentService paymentService;
+    
+    private final PaymentService paymentService;
 
-    @Autowired
-    private UserService userService;
+    
+    private final UserService userService;
 
-    @Autowired
-    private CourseEventPublisher courseEventPublisher;
+    
+    private final CourseEventPublisher courseEventPublisher;
 
     @Value("${course.user-service.authorization-token:}")
     private String userServiceAuthorizationToken;
