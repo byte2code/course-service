@@ -41,6 +41,19 @@ public class CourseEventPublisher {
         publish(buildEvent(CourseEventCategory.NOTIFICATION, type, enrollment, course, null, message));
     }
 
+    public void publishCertificateEvent(Long userId, Course course, String message) {
+        publish(CourseEvent.builder()
+                .category(CourseEventCategory.CERTIFICATE)
+                .type(CourseEventType.EARNED)
+                .courseId(course != null ? course.getId() : null)
+                .courseName(course != null ? course.getName() : null)
+                .userId(userId)
+                .message(message)
+                .correlationId((course != null ? course.getId() : null) + ":" + userId)
+                .eventTime(Instant.now().toString())
+                .build());
+    }
+
     private CourseEvent buildEvent(CourseEventCategory category,
                                    CourseEventType type,
                                    Enrollment enrollment,

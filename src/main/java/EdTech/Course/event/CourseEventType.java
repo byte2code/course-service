@@ -6,5 +6,6 @@ public enum CourseEventType {
     REQUESTED,
     CONFIRMED,
     FAILED,
-    DUPLICATE_REQUEST
+    DUPLICATE_REQUEST,
+    EARNED
 }
