@@ -124,12 +124,37 @@ sequenceDiagram
 - Event payloads include the enrollment id, course id, user id, correlation key, lifecycle status, message, and timestamp
 - Messaging is best-effort and does not block the enrollment workflow if the broker is unavailable
 
+## Cross-Repo Integration
+
+This service natively listens for events from the CNKart (e-commerce) domain to automatically trigger course enrollments when course bundles are purchased. This demonstrates event-driven choreography between entirely decoupled systems in the portfolio.
+
+```mermaid
+sequenceDiagram
+    participant CNKart as CNKart Order Service
+    participant RabbitMQ as RabbitMQ Broker
+    participant EdTech as EdTech Course Service
+    
+    CNKart->>RabbitMQ: Publish "order.confirmed" to cnkart.order.exchange
+    RabbitMQ-->>EdTech: Consume "order.confirmed" from edtech.order.confirmed.queue
+    EdTech->>EdTech: Extract customerId from event
+    EdTech->>EdTech: Trigger CourseService#createEnrollmentForCourse
+    Note over EdTech: Learner is automatically enrolled in the purchased bundle!
+```
+
 ## Integration Points
 
 - `user-service` via `EdTech.Course.feign.UserService`
 - `payment-service` via `EdTech.Course.feign.PaymentService`
-- RabbitMQ via `EdTech.Course.service.CourseEventPublisher`
+- RabbitMQ via `EdTech.Course.service.CourseEventPublisher` (outbound)
+- RabbitMQ via `EdTech.Course.event.OrderEventListener` (inbound from CNKart)
 - `RestTemplate` bean remains available for compatibility with the existing configuration
+
+## LMS Features (Progress, Certificates, Ratings)
+
+As the service evolves into a full-fledged Learning Management System (LMS) backend:
+- **Progress Tracking**: Students can mark individual `CourseMaterial`s as completed.
+- **Automated Certification**: When all materials for a course are marked complete, a `CertificateEarned` event is published via RabbitMQ.
+- **Ratings & Reviews**: Only users with an `ENROLLED` status can rate and review courses, enforcing real domain constraints.
 
 ## Data Model
 
