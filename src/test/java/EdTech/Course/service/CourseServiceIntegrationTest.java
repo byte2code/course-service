@@ -79,6 +79,9 @@ class CourseServiceIntegrationTest {
     private CourseEventPublisher courseEventPublisher;
 
     @MockBean
+    private EdTech.Course.repository.CourseRatingRepository courseRatingRepository;
+
+    @MockBean
     private RestTemplate restTemplate;
 
     @Test

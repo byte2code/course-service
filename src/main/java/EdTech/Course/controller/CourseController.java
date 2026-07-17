@@ -31,15 +31,15 @@ public class CourseController {
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
     @Operation(summary = "Get All Courses", description = "Retrieves a list of all available courses")
-    public List<Course> getAllCourses() {
-        return courseService.getAllCourses();
+    public List<EdTech.Course.dto.CourseResponse> getAllCourses() {
+        return courseService.getAllCourseResponses();
     }
 
     @GetMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
     @Operation(summary = "Get Course by ID", description = "Retrieves a single course by its unique identifier")
-    public Course getCourseById(@PathVariable Long id) {
-        return courseService.getCourseById(id);
+    public EdTech.Course.dto.CourseResponse getCourseById(@PathVariable Long id) {
+        return courseService.getCourseResponseById(id);
     }
 
     @GetMapping("/name/")
@@ -109,6 +109,14 @@ public class CourseController {
             String authorizationHeader,
             Throwable t){
         return new ResponseMessage("Services not available");
+    }
+
+    @PostMapping("/{courseId}/rate")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Add Rating", description = "Adds a rating and review for an enrolled course")
+    public ResponseMessage addRating(@PathVariable Long courseId, @Valid @RequestBody EdTech.Course.dto.CourseRatingDto ratingDto) {
+        courseService.addRating(courseId, ratingDto);
+        return new ResponseMessage("Rating Added Successfully");
     }
 
 }

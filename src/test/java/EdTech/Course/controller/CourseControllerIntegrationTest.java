@@ -35,16 +35,17 @@ class CourseControllerIntegrationTest {
         course.setInstructor("Bipin Verma");
         course.setAmount(4500L);
 
-        when(courseService.getCourseById(11L)).thenReturn(course);
+        when(courseService.getCourseResponseById(11L)).thenReturn(new EdTech.Course.dto.CourseResponse(course, 4.5));
 
         mockMvc.perform(get("/courses/11").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(11))
-                .andExpect(jsonPath("$.name").value("Distributed Systems"))
-                .andExpect(jsonPath("$.instructor").value("Bipin Verma"))
-                .andExpect(jsonPath("$.amount").value(4500));
+                .andExpect(jsonPath("$.course.id").value(11))
+                .andExpect(jsonPath("$.course.name").value("Distributed Systems"))
+                .andExpect(jsonPath("$.course.instructor").value("Bipin Verma"))
+                .andExpect(jsonPath("$.course.amount").value(4500))
+                .andExpect(jsonPath("$.averageRating").value(4.5));
 
-        verify(courseService).getCourseById(11L);
+        verify(courseService).getCourseResponseById(11L);
     }
 
     @Test

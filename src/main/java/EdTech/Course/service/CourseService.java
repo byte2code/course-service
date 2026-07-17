@@ -42,6 +42,7 @@ public class CourseService {
 
     
     private final CourseEventPublisher courseEventPublisher;
+    private final EdTech.Course.repository.CourseRatingRepository courseRatingRepository;
 
     @Value("${course.user-service.authorization-token:}")
     private String userServiceAuthorizationToken;
@@ -50,9 +51,41 @@ public class CourseService {
         return courseRepository.findAll();
     }
 
+    public List<EdTech.Course.dto.CourseResponse> getAllCourseResponses() {
+        return courseRepository.findAll().stream()
+                .map(this::mapToCourseResponse)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     public Course getCourseById(Long id) {
         Optional<Course> courseOptional = courseRepository.findById(id);
         return courseOptional.orElse(null);
+    }
+
+    public EdTech.Course.dto.CourseResponse getCourseResponseById(Long id) {
+        Course course = getCourseById(id);
+        if (course == null) return null;
+        return mapToCourseResponse(course);
+    }
+
+    private EdTech.Course.dto.CourseResponse mapToCourseResponse(Course course) {
+        Double avg = courseRatingRepository.getAverageRatingByCourseId(course.getId());
+        return new EdTech.Course.dto.CourseResponse(course, avg != null ? Math.round(avg * 10.0) / 10.0 : null);
+    }
+
+    public void addRating(Long courseId, EdTech.Course.dto.CourseRatingDto ratingDto) {
+        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(ratingDto.getUserId(), courseId).orElse(null);
+        if (enrollment == null || enrollment.getStatus() != EnrollmentStatus.ENROLLED) {
+            throw new RuntimeException("User is not enrolled in this course");
+        }
+
+        EdTech.Course.model.CourseRating rating = courseRatingRepository.findByUserIdAndCourseId(ratingDto.getUserId(), courseId)
+                .orElseGet(EdTech.Course.model.CourseRating::new);
+        rating.setUserId(ratingDto.getUserId());
+        rating.setCourseId(courseId);
+        rating.setRating(ratingDto.getRating());
+        rating.setComment(ratingDto.getComment());
+        courseRatingRepository.save(rating);
     }
 
     public void createCourse(CourseDto courseDto) {

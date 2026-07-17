@@ -55,6 +55,9 @@ class CourseServiceTest {
     @Mock
     private CourseEventPublisher courseEventPublisher;
 
+    @Mock
+    private EdTech.Course.repository.CourseRatingRepository courseRatingRepository;
+
     @InjectMocks
     private CourseService courseService;
 
