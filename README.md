@@ -3,7 +3,7 @@
 ![CI](https://github.com/byte2code/course-service/actions/workflows/ci.yml/badge.svg)
 ![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.7.13-brightgreen?logo=springboot)
-![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3-orange?logo=rabbitmq)
+![Spring Cloud](https://img.shields.io/badge/Spring%20Cloud-2021.0.8-brightgreen?logo=spring)
 ![MySQL](https://img.shields.io/badge/MySQL-8-blue?logo=mysql)
 
 A production-grade **LMS backend microservice** built with Spring Boot. It models the full lifecycle of online courses — from catalog management and student enrollment to progress tracking, automated certification, and peer reviews — exposing all workflows via clean REST endpoints backed by a resilient, event-driven architecture.
@@ -548,21 +548,27 @@ target/site/jacoco/index.html   ← HTML coverage report
 
 ## Tech Stack
 
-| Category | Technology |
-|---|---|
-| Runtime | Java 17, Spring Boot 2.7.13 |
-| API | Spring Web MVC, SpringDoc OpenAPI (Swagger) |
-| Persistence | Spring Data JPA, Hibernate, MySQL 8 |
-| Messaging | Spring AMQP, RabbitMQ 3 |
-| Service Discovery | Spring Cloud Eureka Client |
-| HTTP Clients | Spring Cloud OpenFeign, RestTemplate |
-| Resilience | Resilience4j (circuit-breaker + retry) |
-| Security | Spring Security, OAuth2 Resource Server (JWT) |
-| Observability | Spring Cloud Sleuth, Zipkin, Micrometer, Prometheus |
-| Testing | JUnit 5, Mockito, Spring Test, Testcontainers |
-| Coverage | JaCoCo (70% service-layer minimum) |
-| Build | Maven 3, GitHub Actions CI |
-| Utilities | Lombok |
+| Category | Technology | Version |
+|---|---|---|
+| Runtime | Java | 17 |
+| Framework | Spring Boot | 2.7.13 |
+| Cloud BOM | Spring Cloud | 2021.0.8 |
+| API | Spring Web MVC | (Boot-managed) |
+| API Docs | SpringDoc OpenAPI UI | 1.7.0 |
+| Persistence | Spring Data JPA + Hibernate | (Boot-managed) |
+| Database | MySQL | 8 (dialect: MySQL8Dialect) |
+| Messaging | Spring AMQP (RabbitMQ) | (Boot-managed) |
+| Service Discovery | Spring Cloud Netflix Eureka Client | (Cloud BOM) |
+| HTTP Clients | Spring Cloud OpenFeign, RestTemplate | (Cloud BOM) |
+| Resilience | Resilience4j circuit-breaker + retry | (Cloud BOM) |
+| Security | Spring Security + OAuth2 Resource Server | (Boot-managed) |
+| Observability | Spring Cloud Sleuth + Zipkin | (Cloud BOM) |
+| Metrics | Micrometer + Prometheus registry | (Boot-managed) |
+| Testing | JUnit 5, Mockito, Spring Test | (Boot-managed) |
+| Testcontainers | MySQL + RabbitMQ containers | 1.19.3 |
+| Coverage | JaCoCo (≥70% on service layer) | 0.8.11 |
+| Build | Maven + GitHub Actions CI | 3.x |
+| Utilities | Lombok | 1.18.30 |
 
 ---
 
