@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: course-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: changeme
+      MYSQL_DATABASE: edtech_course_service
+    ports:
+      - "3306:3306"
+    networks:
+      - edtech-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: course-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: changeme
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - edtech-network
+
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: course-zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - edtech-network
+
+networks:
+  edtech-network:
+    driver: bridge

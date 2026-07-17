@@ -34,3 +34,17 @@ resilience4j:
       courseEnrollment:
         max-attempts: 3
         wait-duration: 500
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+spring:
+  sleuth:
+    sampler:
+      probability: 1.0
