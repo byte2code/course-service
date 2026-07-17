@@ -16,6 +16,9 @@ spring:
         dialect: org.hibernate.dialect.MySQL8Dialect
     hibernate:
       ddl-auto: update
+  sleuth:
+    sampler:
+      probability: 1.0
 course:
   user-service:
     authorization-token: ${USER_SERVICE_AUTH_TOKEN:}
@@ -43,8 +46,3 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
-
-spring:
-  sleuth:
-    sampler:
-      probability: 1.0
