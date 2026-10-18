@@ -53,8 +53,12 @@ public class EnrollmentFlowIntegrationTest {
         registry.add("spring.datasource.password", mySQLContainer::getPassword);
         registry.add("spring.rabbitmq.host", rabbitMQContainer::getHost);
         registry.add("spring.rabbitmq.port", rabbitMQContainer::getAmqpPort);
+        registry.add("spring.rabbitmq.username", rabbitMQContainer::getAdminUsername);
+        registry.add("spring.rabbitmq.password", rabbitMQContainer::getAdminPassword);
         registry.add("eureka.client.enabled", () -> false);
         registry.add("spring.cloud.discovery.enabled", () -> false);
+        registry.add("spring.zipkin.enabled", () -> false);
+        registry.add("spring.sleuth.enabled", () -> false);
     }
 
     @TestConfiguration

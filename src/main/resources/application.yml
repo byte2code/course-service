@@ -5,7 +5,7 @@ spring:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:changeme}
+    password: ${RABBITMQ_PASSWORD:guest}
   datasource:
     url: ${DATASOURCE_URL:jdbc:mysql://localhost:3306/edtech_course_service?useSSL=false&allowPublicKeyRetrieval=true}
     username: ${DATASOURCE_USERNAME:root}
