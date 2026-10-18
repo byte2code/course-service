@@ -2,14 +2,21 @@ spring:
   application:
     name: course-service
   rabbitmq:
-    host: localhost
-    port: 5672
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:changeme}
   datasource:
-    url: ${DATASOURCE_URL:jdbc:mysql://localhost:3306/edtech_course_service?useSSL=false}
+    url: ${DATASOURCE_URL:jdbc:mysql://localhost:3306/edtech_course_service?useSSL=false&allowPublicKeyRetrieval=true}
     username: ${DATASOURCE_USERNAME:root}
     password: ${DATASOURCE_PASSWORD:changeme}
+  cache:
+    type: caffeine
+    cache-names:
+      - courses
+      - courseResponses
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=10m
   jpa:
     properties:
       hibernate:

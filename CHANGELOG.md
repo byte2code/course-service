@@ -1,5 +1,18 @@
 # Changelog
 
+## v10.0.0 - 2026-10-18
+
+- Fixed circuit breaker fallback returning HTTP 201 Created; now properly returns HTTP 503 Service Unavailable with descriptive payload
+- Eliminated N+1 query bottlenecks in course rating aggregation using batch group-by queries (`getAllAverageRatings`)
+- Eliminated N+1 stream query iterations in certificate issuance check using single aggregate SQL count (`countCompletedMaterialsByUserIdAndCourseId`)
+- Added idempotent certificate tracking via `Certificate` entity and `CertificateRepository` to prevent duplicate certification events
+- Added pagination support to course catalog endpoints (`/courses?page=0&size=20`)
+- Added Role-Based Access Control (RBAC) with `@EnableGlobalMethodSecurity` and `@PreAuthorize` on administrative and instructor endpoints
+- Added high-performance in-memory caching using Spring Cache and Caffeine with automated cache eviction on catalog mutations
+- Hardened RabbitMQ order event listener with dynamic course ID resolution and reliable error rethrowing for DLQ routing
+- Enhanced global exception handler with dedicated handlers for validation errors, illegal arguments, access denied, and resource not found
+- Upgraded JaCoCo to 0.8.12 and Lombok to 1.18.34 with explicit service constructor for Java 23 LTS runtime support
+
 ## v9.3.0 - 2026-06-11
 
 - Replaced deprecated Netflix Hystrix circuit breaker with Spring Cloud Circuit Breaker Resilience4j

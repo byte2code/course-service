@@ -19,6 +19,7 @@ public class CourseProgressService {
     private final CourseProgressRepository courseProgressRepository;
     private final CourseMaterialRepository courseMaterialRepository;
     private final CourseEventPublisher courseEventPublisher;
+    private final EdTech.Course.repository.CertificateRepository certificateRepository;
 
     public void updateProgress(CourseProgressDto progressDto) {
         Optional<CourseProgress> existingProgress = courseProgressRepository
@@ -51,17 +52,20 @@ public class CourseProgressService {
         int totalMaterials = course.getCourseMaterial() != null ? course.getCourseMaterial().size() : 0;
         if (totalMaterials == 0) return;
 
-        List<CourseProgress> userProgress = courseProgressRepository.findByUserId(userId);
-        
-        long completedCount = userProgress.stream()
-                .filter(CourseProgress::isCompleted)
-                .filter(p -> {
-                    CourseMaterial mat = courseMaterialRepository.findById(p.getMaterialId()).orElse(null);
-                    return mat != null && mat.getCourse() != null && mat.getCourse().getId().equals(course.getId());
-                })
-                .count();
+        // Idempotency: Don't re-issue certificate if already earned
+        if (certificateRepository.existsByUserIdAndCourseId(userId, course.getId())) {
+            return;
+        }
+
+        long completedCount = courseProgressRepository.countCompletedMaterialsByUserIdAndCourseId(userId, course.getId());
 
         if (completedCount == totalMaterials) {
+            EdTech.Course.model.Certificate certificate = new EdTech.Course.model.Certificate();
+            certificate.setUserId(userId);
+            certificate.setCourseId(course.getId());
+            certificate.setIssuedAt(java.time.LocalDateTime.now());
+            certificateRepository.save(certificate);
+
             courseEventPublisher.publishCertificateEvent(userId, course, "Course completed and certificate earned.");
         }
     }

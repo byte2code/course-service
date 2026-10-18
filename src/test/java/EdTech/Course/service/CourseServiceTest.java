@@ -43,8 +43,6 @@ class CourseServiceTest {
     @Mock
     private EnrollmentRepository enrollmentRepository;
 
-    @Mock
-    private RestTemplate restTemplate;
 
     @Mock
     private PaymentService paymentService;

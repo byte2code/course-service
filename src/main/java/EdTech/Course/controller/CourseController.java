@@ -6,11 +6,12 @@ import EdTech.Course.model.Course;
 import EdTech.Course.model.CourseMaterial;
 import EdTech.Course.service.CourseService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import javax.ws.rs.PathParam;
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,17 +22,21 @@ import javax.validation.Valid;
 
 @RestController
 @RequestMapping("/courses")
+@RequiredArgsConstructor
 @Tag(name = "Course Controller", description = "Course and Enrollment Management Endpoints")
 public class CourseController {
 
-
-    @Autowired
-    private CourseService courseService;
+    private final CourseService courseService;
 
     @GetMapping
     @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Get All Courses", description = "Retrieves a list of all available courses")
-    public List<EdTech.Course.dto.CourseResponse> getAllCourses() {
+    @Operation(summary = "Get All Courses", description = "Retrieves a list of all available courses (supports optional pagination with page and size parameters)")
+    public List<EdTech.Course.dto.CourseResponse> getAllCourses(
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
+        if (page != null && size != null) {
+            return courseService.getCourseResponsesPaged(page, size);
+        }
         return courseService.getAllCourseResponses();
     }
 
@@ -42,21 +47,27 @@ public class CourseController {
         return courseService.getCourseResponseById(id);
     }
 
-    @GetMapping("/name/")
+    @GetMapping(value = {"/name", "/name/"})
     @ResponseStatus(HttpStatus.OK)
     @Operation(summary = "Get Course by Name", description = "Retrieves a course matching the given name")
     public Course getCourseByName(@RequestParam("name") String name) {
         return courseService.getCourseByName(name);
     }
 
-    @GetMapping("/courseMaterial/")
+    @GetMapping(value = {"/courseMaterial", "/courseMaterial/", "/{id}/materials"})
     @ResponseStatus(HttpStatus.OK)
     @Operation(summary = "Get Course Material", description = "Retrieves all course materials for a given course ID")
-    public List<CourseMaterial> getCourseMaterialByCourseId(@RequestParam("id") Long id){
-        return courseService.getCourseMaterialByCourseId(id);
+    public List<CourseMaterial> getCourseMaterialByCourseId(
+            @RequestParam(value = "id", required = false) Long paramId,
+            @PathVariable(value = "id", required = false) Long pathId){
+        Long effectiveId = pathId != null ? pathId : paramId;
+        if (effectiveId == null) {
+            throw new IllegalArgumentException("Course ID must be provided");
+        }
+        return courseService.getCourseMaterialByCourseId(effectiveId);
     }
 
-    @GetMapping("/instructor/")
+    @GetMapping(value = {"/instructor", "/instructor/"})
     @ResponseStatus(HttpStatus.OK)
     @Operation(summary = "Get Course by Instructor", description = "Retrieves a course taught by the specified instructor")
     public Course getCourseByInstructor(@RequestParam("instructor") String instructor) {
@@ -65,6 +76,7 @@ public class CourseController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
     @Operation(summary = "Create Course", description = "Creates a new course with materials and enrollment slots")
     public ResponseMessage createCourse(@Valid @RequestBody CourseDto courseDto) {
         courseService.createCourse(courseDto);
@@ -73,6 +85,7 @@ public class CourseController {
 
     @PutMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
     @Operation(summary = "Update Course", description = "Updates an existing course by ID")
     public ResponseMessage updateCourse(@PathVariable Long id, @Valid @RequestBody CourseDto updatedCourseDto) {
         courseService.updateCourse(id, updatedCourseDto);
@@ -81,6 +94,7 @@ public class CourseController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete Course", description = "Deletes a course by ID")
     public ResponseMessage deleteCourse(@PathVariable Long id) {
         courseService.deleteCourse(id);
@@ -89,26 +103,28 @@ public class CourseController {
 
 
     @PostMapping("/course/{courseId}/register/{userId}")
-    @ResponseStatus(HttpStatus.CREATED)
     @CircuitBreaker(name = "courseEnrollment", fallbackMethod = "registerForCourseFallback")
     @Operation(summary = "Register User for Course", description = "Registers a user for a specific course and triggers the enrollment state machine: INITIATED -> USER_VERIFIED -> PAYMENT_PENDING -> ENROLLED, with FAILED as a terminal state from any step")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Successfully registered or duplicate request ignored"),
-            @ApiResponse(responseCode = "422", description = "Enrollment failed — user not found, payment error, or service unavailable")
+            @ApiResponse(responseCode = "422", description = "Enrollment failed — user not found, payment error, or invalid state"),
+            @ApiResponse(responseCode = "503", description = "Downstream services unavailable (circuit breaker fallback)")
     })
-    public ResponseMessage registerForCourse(
+    public ResponseEntity<ResponseMessage> registerForCourse(
             @PathVariable Long courseId,
             @PathVariable Long userId,
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader){
-        return courseService.createEnrollmentForCourse(courseId, userId, authorizationHeader);
+        ResponseMessage response = courseService.createEnrollmentForCourse(courseId, userId, authorizationHeader);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    public ResponseMessage registerForCourseFallback(
+    public ResponseEntity<ResponseMessage> registerForCourseFallback(
             Long courseId,
             Long userId,
             String authorizationHeader,
             Throwable t){
-        return new ResponseMessage("Services not available");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ResponseMessage("Services not available: " + (t != null ? t.getMessage() : "downstream failure")));
     }
 
     @PostMapping("/{courseId}/rate")

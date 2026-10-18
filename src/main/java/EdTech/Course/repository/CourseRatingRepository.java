@@ -15,4 +15,10 @@ public interface CourseRatingRepository extends JpaRepository<CourseRating, Long
 
     @Query("SELECT AVG(r.rating) FROM CourseRating r WHERE r.courseId = :courseId")
     Double getAverageRatingByCourseId(@Param("courseId") Long courseId);
+
+    @Query("SELECT r.courseId, AVG(r.rating) FROM CourseRating r GROUP BY r.courseId")
+    java.util.List<Object[]> getAllAverageRatings();
+
+    @Query("SELECT r.courseId, AVG(r.rating) FROM CourseRating r WHERE r.courseId IN :courseIds GROUP BY r.courseId")
+    java.util.List<Object[]> getAverageRatingsForCourseIds(@Param("courseIds") java.util.Collection<Long> courseIds);
 }

@@ -81,8 +81,6 @@ class CourseServiceIntegrationTest {
     @MockBean
     private EdTech.Course.repository.CourseRatingRepository courseRatingRepository;
 
-    @MockBean
-    private RestTemplate restTemplate;
 
     @Test
     void springContextWiresEnrollmentFlowAndPublishesLifecycleEvents() {

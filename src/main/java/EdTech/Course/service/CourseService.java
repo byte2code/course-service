@@ -16,52 +16,92 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
-@lombok.RequiredArgsConstructor
 public class CourseService {
 
-    
     private final CourseRepository courseRepository;
-
-    
     private final EnrollmentRepository enrollmentRepository;
-
-    
-    private final RestTemplate restTemplate;
-
-    
     private final PaymentService paymentService;
-
-    
     private final UserService userService;
-
-    
     private final CourseEventPublisher courseEventPublisher;
     private final EdTech.Course.repository.CourseRatingRepository courseRatingRepository;
 
     @Value("${course.user-service.authorization-token:}")
     private String userServiceAuthorizationToken;
 
+    public CourseService(CourseRepository courseRepository,
+                         EnrollmentRepository enrollmentRepository,
+                         PaymentService paymentService,
+                         UserService userService,
+                         CourseEventPublisher courseEventPublisher,
+                         EdTech.Course.repository.CourseRatingRepository courseRatingRepository) {
+        this.courseRepository = courseRepository;
+        this.enrollmentRepository = enrollmentRepository;
+        this.paymentService = paymentService;
+        this.userService = userService;
+        this.courseEventPublisher = courseEventPublisher;
+        this.courseRatingRepository = courseRatingRepository;
+    }
+
     public List<Course> getAllCourses() {
         return courseRepository.findAll();
     }
 
     public List<EdTech.Course.dto.CourseResponse> getAllCourseResponses() {
-        return courseRepository.findAll().stream()
-                .map(this::mapToCourseResponse)
-                .collect(java.util.stream.Collectors.toList());
+        List<Course> courses = courseRepository.findAll();
+        if (courses.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Long, Double> ratingMap = courseRatingRepository.getAllAverageRatings().stream()
+                .filter(row -> row != null && row.length >= 2 && row[0] != null && row[1] != null)
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> Math.round(((Double) row[1]) * 10.0) / 10.0,
+                        (r1, r2) -> r1
+                ));
+
+        return courses.stream()
+                .map(c -> new EdTech.Course.dto.CourseResponse(c, ratingMap.get(c.getId())))
+                .collect(Collectors.toList());
     }
 
+    public List<EdTech.Course.dto.CourseResponse> getCourseResponsesPaged(int page, int size) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                Math.max(0, page), Math.max(1, size), org.springframework.data.domain.Sort.by("id").ascending()
+        );
+        org.springframework.data.domain.Page<Course> coursePage = courseRepository.findAll(pageable);
+        if (coursePage.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> courseIds = coursePage.getContent().stream().map(Course::getId).collect(Collectors.toList());
+        Map<Long, Double> ratingMap = courseRatingRepository.getAverageRatingsForCourseIds(courseIds).stream()
+                .filter(row -> row != null && row.length >= 2 && row[0] != null && row[1] != null)
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> Math.round(((Double) row[1]) * 10.0) / 10.0,
+                        (r1, r2) -> r1
+                ));
+
+        return coursePage.getContent().stream()
+                .map(c -> new EdTech.Course.dto.CourseResponse(c, ratingMap.get(c.getId())))
+                .collect(Collectors.toList());
+    }
+
+    @org.springframework.cache.annotation.Cacheable(value = "courses", key = "#id", unless = "#result == null")
     public Course getCourseById(Long id) {
         Optional<Course> courseOptional = courseRepository.findById(id);
         return courseOptional.orElse(null);
     }
 
+    @org.springframework.cache.annotation.Cacheable(value = "courseResponses", key = "#id", unless = "#result == null")
     public EdTech.Course.dto.CourseResponse getCourseResponseById(Long id) {
         Course course = getCourseById(id);
         if (course == null) return null;
@@ -73,6 +113,7 @@ public class CourseService {
         return new EdTech.Course.dto.CourseResponse(course, avg != null ? Math.round(avg * 10.0) / 10.0 : null);
     }
 
+    @org.springframework.cache.annotation.CacheEvict(value = "courseResponses", key = "#courseId")
     public void addRating(Long courseId, EdTech.Course.dto.CourseRatingDto ratingDto) {
         Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(ratingDto.getUserId(), courseId).orElse(null);
         if (enrollment == null || enrollment.getStatus() != EnrollmentStatus.ENROLLED) {
@@ -88,6 +129,7 @@ public class CourseService {
         courseRatingRepository.save(rating);
     }
 
+    @org.springframework.cache.annotation.CacheEvict(value = {"courses", "courseResponses"}, allEntries = true)
     public void createCourse(CourseDto courseDto) {
         Course course = new Course();
         course.setAmount(courseDto.getAmount());
@@ -105,6 +147,7 @@ public class CourseService {
         courseRepository.save(course);
     }
 
+    @org.springframework.cache.annotation.CacheEvict(value = {"courses", "courseResponses"}, allEntries = true)
     public void updateCourse(Long id, CourseDto updatedCourseDto) {
         Course existingCourse = getCourseById(id);
         if (existingCourse != null) {
@@ -125,6 +168,7 @@ public class CourseService {
         }
     }
 
+    @org.springframework.cache.annotation.CacheEvict(value = {"courses", "courseResponses"}, allEntries = true)
     public void deleteCourse(Long id) {
         courseRepository.deleteById(id);
     }

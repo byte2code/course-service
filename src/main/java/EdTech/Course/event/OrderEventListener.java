@@ -30,19 +30,36 @@ public class OrderEventListener {
         log.info("Received CNKart order confirmed event: {}", orderEvent);
         
         try {
-            // Extract user ID from the order event (assuming it's passed as 'userId' or 'customerId')
+            // Extract user ID from the order event (customerId or userId)
             Object customerIdObj = orderEvent.get("customerId");
+            if (customerIdObj == null) {
+                customerIdObj = orderEvent.get("userId");
+            }
+
+            // Extract course ID if provided in event, otherwise fallback to BUNDLE_COURSE_ID
+            Long courseId = BUNDLE_COURSE_ID;
+            Object courseIdObj = orderEvent.get("courseId");
+            if (courseIdObj == null) {
+                courseIdObj = orderEvent.get("bundleCourseId");
+            }
+            if (courseIdObj != null) {
+                try {
+                    courseId = Long.valueOf(courseIdObj.toString());
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid courseId in order event, using default bundle course: {}", courseIdObj);
+                }
+            }
+
             if (customerIdObj != null) {
                 Long userId = Long.valueOf(customerIdObj.toString());
-                log.info("Triggering automatic enrollment for user: {} in course: {}", userId, BUNDLE_COURSE_ID);
-                
-                // Trigger enrollment process
-                courseService.createEnrollmentForCourse(BUNDLE_COURSE_ID, userId);
+                log.info("Triggering automatic enrollment for user: {} in course: {}", userId, courseId);
+                courseService.createEnrollmentForCourse(courseId, userId);
             } else {
-                log.warn("Cannot process order event: missing customerId");
+                log.warn("Cannot process order event: missing customerId/userId in payload: {}", orderEvent);
             }
-        } catch (Exception e) {
-            log.error("Failed to process order event", e);
+        } catch (RuntimeException e) {
+            log.error("Failed to process order event: {}", orderEvent, e);
+            throw e; // Rethrow to ensure AMQP message retry / DLQ routing instead of silent drop
         }
     }
 }
